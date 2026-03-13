@@ -1,5 +1,5 @@
 import express from "express";
-
+import { resizeImageForAI, deleteTempImage } from "../utils/resize.js";
 import { saveBase64Image, readImageMetadata } from "../utils/image.js";
 import {
   buildPredictionText,
@@ -35,16 +35,30 @@ router.post("/", async (req, res) => {
     console.log("readImageMetadata:", Date.now() - t2, "ms");
 
     let prediction = null;
-    const t3 = Date.now();
+    let aiImagePath = null;
+
     try {
-      prediction = await predictDisaster(filePath);
-      console.log("predictDisaster:", Date.now() - t3, "ms");
+      const t3 = Date.now();
+      aiImagePath = await resizeImageForAI(filePath);
+      console.log("resizeImageForAI:", Date.now() - t3, "ms");
+
+      const t4 = Date.now();
+      prediction = await predictDisaster(aiImagePath);
+      console.log("predictDisaster:", Date.now() - t4, "ms");
+
       console.log("Prediction:", prediction);
+
+      // ลบไฟล์ temp
+      await deleteTempImage(aiImagePath);
     } catch (aiErr) {
       console.error(
         "AI prediction error:",
         aiErr.response?.data || aiErr.message
       );
+
+      if (aiImagePath) {
+        await deleteTempImage(aiImagePath);
+      }
 
       return res.status(500).json({
         error: "AI prediction failed",
@@ -54,6 +68,7 @@ router.post("/", async (req, res) => {
 
     if (!prediction || !shouldSendAlert(prediction)) {
       console.log("TOTAL:", Date.now() - t0, "ms");
+
       return res.json({
         success: true,
         message: "normal detected, no alert sent",
@@ -64,12 +79,13 @@ router.post("/", async (req, res) => {
     const incidentLat = lat ?? metadata.latitude;
     const incidentLng = lng ?? metadata.longitude;
 
-    const t4 = Date.now();
+    const t5 = Date.now();
     const nearestRescue = await findNearestRescue(incidentLat, incidentLng);
-    console.log("findNearestRescue:", Date.now() - t4, "ms");
+    console.log("findNearestRescue:", Date.now() - t5, "ms");
 
     if (!nearestRescue) {
       console.log("TOTAL:", Date.now() - t0, "ms");
+
       return res.status(404).json({
         error: "ไม่พบหน่วยกู้ภัยที่ครอบคลุมพื้นที่นี้",
         prediction,
@@ -116,11 +132,11 @@ router.post("/", async (req, res) => {
       previewImageUrl: imageUrl,
     });
 
-    const t5 = Date.now();
-    await pushToRescueGroup(nearestRescue.line_group_id, messages);
-    console.log("pushToRescueGroup:", Date.now() - t5, "ms");
-
     const t6 = Date.now();
+    await pushToRescueGroup(nearestRescue.line_group_id, messages);
+    console.log("pushToRescueGroup:", Date.now() - t6, "ms");
+
+    const t7 = Date.now();
     await saveIncident({
       sourceType: "web_report",
       imageUrl,
@@ -133,7 +149,7 @@ router.post("/", async (req, res) => {
       rescueUnitId: nearestRescue.id,
       rawPrediction: prediction,
     });
-    console.log("saveIncident:", Date.now() - t6, "ms");
+    console.log("saveIncident:", Date.now() - t7, "ms");
 
     console.log("TOTAL:", Date.now() - t0, "ms");
 
@@ -142,8 +158,10 @@ router.post("/", async (req, res) => {
       prediction,
       nearest_rescue: nearestRescue,
     });
+
   } catch (err) {
     console.error("FULL ERROR:", err.response?.data || err.message);
+
     return res.status(500).json({
       error: "Push failed",
       details: err.response?.data || err.message,

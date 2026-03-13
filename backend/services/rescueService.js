@@ -1,39 +1,50 @@
 import supabase from "../config/supabase.js";
 import { haversine } from "../utils/geo.js";
 
-export async function findNearestRescue(lat, lng) {
-  if (lat == null || lng == null) {
-    return null;
+let rescueCache = [];
+let lastFetch = 0;
+
+const CACHE_TTL = 60000; // 1 นาที
+
+async function getRescueUnits() {
+  const now = Date.now();
+
+  if (rescueCache.length && now - lastFetch < CACHE_TTL) {
+    return rescueCache;
   }
 
   const { data, error } = await supabase
     .from("rescue_units")
-    .select("*")
+    .select("id,name,line_group_id,base_lat,base_lng,coverage_km")
     .eq("status", "active");
 
   if (error) {
-    throw new Error(`Supabase error: ${error.message}`);
+    throw new Error(error.message);
   }
 
-  if (!data || data.length === 0) {
-    return null;
-  }
+  rescueCache = data;
+  lastFetch = now;
+
+  return data;
+}
+
+export async function findNearestRescue(lat, lng) {
+  if (lat == null || lng == null) return null;
+
+  const data = await getRescueUnits();
 
   let nearest = null;
   let minDistance = Infinity;
 
   for (const unit of data) {
-    const unitLat = Number(unit.base_lat);
-    const unitLng = Number(unit.base_lng);
-    const coverageKm = Number(unit.coverage_km || 0);
+    const distance = haversine(
+      lat,
+      lng,
+      Number(unit.base_lat),
+      Number(unit.base_lng)
+    );
 
-    if (Number.isNaN(unitLat) || Number.isNaN(unitLng)) {
-      continue;
-    }
-
-    const distance = haversine(Number(lat), Number(lng), unitLat, unitLng);
-
-    if (distance <= coverageKm && distance < minDistance) {
+    if (distance <= unit.coverage_km && distance < minDistance) {
       minDistance = distance;
       nearest = {
         ...unit,
