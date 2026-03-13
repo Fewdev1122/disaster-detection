@@ -45,10 +45,8 @@ router.post("/", async (req, res) => {
       const t4 = Date.now();
       prediction = await predictDisaster(aiImagePath);
       console.log("predictDisaster:", Date.now() - t4, "ms");
-
       console.log("Prediction:", prediction);
 
-      // ลบไฟล์ temp
       await deleteTempImage(aiImagePath);
     } catch (aiErr) {
       console.error(
@@ -133,11 +131,16 @@ router.post("/", async (req, res) => {
     });
 
     const t6 = Date.now();
-    await pushToRescueGroup(nearestRescue.line_group_id, messages);
-    console.log("pushToRescueGroup:", Date.now() - t6, "ms");
+    pushToRescueGroup(nearestRescue.line_group_id, messages)
+      .then(() => {
+        console.log("pushToRescueGroup:", Date.now() - t6, "ms");
+      })
+      .catch((err) => {
+        console.error("LINE push error:", err.message);
+      });
 
     const t7 = Date.now();
-    await saveIncident({
+    saveIncident({
       sourceType: "web_report",
       imageUrl,
       disasterType: prediction?.class || null,
@@ -148,8 +151,13 @@ router.post("/", async (req, res) => {
       photoLng: metadata.longitude,
       rescueUnitId: nearestRescue.id,
       rawPrediction: prediction,
-    });
-    console.log("saveIncident:", Date.now() - t7, "ms");
+    })
+      .then(() => {
+        console.log("saveIncident:", Date.now() - t7, "ms");
+      })
+      .catch((err) => {
+        console.error("saveIncident error:", err.message);
+      });
 
     console.log("TOTAL:", Date.now() - t0, "ms");
 
@@ -158,7 +166,6 @@ router.post("/", async (req, res) => {
       prediction,
       nearest_rescue: nearestRescue,
     });
-
   } catch (err) {
     console.error("FULL ERROR:", err.response?.data || err.message);
 
