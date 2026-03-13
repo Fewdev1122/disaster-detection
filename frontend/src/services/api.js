@@ -1,10 +1,10 @@
-const BASE_URL = import.meta.env.VITE_BASE_URL || "https://superbusily-volitant-makenna.ngrok-free.dev";
+const BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
 export async function sendReport(image, location) {
   if (!image) {
     throw new Error("Image is required");
   }
-  
 
   const res = await fetch(`${BASE_URL}/report`, {
     method: "POST",
