@@ -15,6 +15,8 @@ import { saveIncident } from "../services/incidentService.js";
 const router = express.Router();
 
 router.post("/", async (req, res) => {
+  const t0 = Date.now();
+
   try {
     const { image, lat, lng } = req.body;
 
@@ -22,14 +24,21 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Image missing" });
     }
 
+    const t1 = Date.now();
     const { fileName, filePath } = saveBase64Image(image, "report");
+    console.log("saveBase64Image:", Date.now() - t1, "ms");
+
     const imageUrl = `${process.env.BASE_URL}/images/${fileName}`;
+
+    const t2 = Date.now();
     const metadata = await readImageMetadata(filePath);
+    console.log("readImageMetadata:", Date.now() - t2, "ms");
 
     let prediction = null;
-
+    const t3 = Date.now();
     try {
       prediction = await predictDisaster(filePath);
+      console.log("predictDisaster:", Date.now() - t3, "ms");
       console.log("Prediction:", prediction);
     } catch (aiErr) {
       console.error(
@@ -44,6 +53,7 @@ router.post("/", async (req, res) => {
     }
 
     if (!prediction || !shouldSendAlert(prediction)) {
+      console.log("TOTAL:", Date.now() - t0, "ms");
       return res.json({
         success: true,
         message: "normal detected, no alert sent",
@@ -54,9 +64,12 @@ router.post("/", async (req, res) => {
     const incidentLat = lat ?? metadata.latitude;
     const incidentLng = lng ?? metadata.longitude;
 
+    const t4 = Date.now();
     const nearestRescue = await findNearestRescue(incidentLat, incidentLng);
+    console.log("findNearestRescue:", Date.now() - t4, "ms");
 
     if (!nearestRescue) {
+      console.log("TOTAL:", Date.now() - t0, "ms");
       return res.status(404).json({
         error: "ไม่พบหน่วยกู้ภัยที่ครอบคลุมพื้นที่นี้",
         prediction,
@@ -103,8 +116,11 @@ router.post("/", async (req, res) => {
       previewImageUrl: imageUrl,
     });
 
+    const t5 = Date.now();
     await pushToRescueGroup(nearestRescue.line_group_id, messages);
+    console.log("pushToRescueGroup:", Date.now() - t5, "ms");
 
+    const t6 = Date.now();
     await saveIncident({
       sourceType: "web_report",
       imageUrl,
@@ -117,6 +133,9 @@ router.post("/", async (req, res) => {
       rescueUnitId: nearestRescue.id,
       rawPrediction: prediction,
     });
+    console.log("saveIncident:", Date.now() - t6, "ms");
+
+    console.log("TOTAL:", Date.now() - t0, "ms");
 
     return res.json({
       success: true,
