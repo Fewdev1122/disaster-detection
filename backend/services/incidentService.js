@@ -26,7 +26,7 @@ export async function saveIncident({
       raw_prediction: rawPrediction || null,
     };
 
-    const { error } = await supabase.from("incidents").insert(payload);
+    const { error } = await supabase.from("incidents_reports").insert(payload);
 
     if (error) {
       console.error("Save incident error:", error.message);
