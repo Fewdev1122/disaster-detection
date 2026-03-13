@@ -26,12 +26,22 @@ export async function saveIncident({
       raw_prediction: rawPrediction || null,
     };
 
-    const { error } = await supabase.from("incidents_reports").insert(payload);
+    console.log("Saving incident payload:", payload);
+
+    const { data, error } = await supabase
+      .from("incident_reports") // <- เปลี่ยนเป็นชื่อตารางจริง
+      .insert([payload])
+      .select();
 
     if (error) {
-      console.error("Save incident error:", error.message);
+      console.error("Save incident error:", error);
+      return null;
     }
+
+    console.log("Incident saved:", data);
+    return data;
   } catch (err) {
-    console.error("Save incident unexpected error:", err.message);
+    console.error("Save incident unexpected error:", err);
+    return null;
   }
 }
