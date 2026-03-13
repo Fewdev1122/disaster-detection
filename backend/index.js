@@ -3,19 +3,24 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import path from "path";
+
 import hotspotRouter from "./routes/hotspot.js";
 import webhookRouter from "./routes/webhook.js";
 import reportRouter from "./routes/report.js";
+import airRoute from "./routes/air.js";
 
-dotenv.config({ path: "../.env" });
+dotenv.config({ path: path.resolve(process.cwd(), "../.env") });
 
-console.log("CHANNEL_ACCESS_TOKEN:", process.env.CHANNEL_ACCESS_TOKEN ? "OK" : "MISSING");
-console.log("CHANNEL_SECRET:", process.env.CHANNEL_SECRET ? "OK" : "MISSING");
-console.log("BASE_URL:", process.env.BASE_URL || "MISSING");
 console.log(
-  "AI_SERVICE_URL:",
-  process.env.AI_SERVICE_URL || "MISSING"
+  "CHANNEL_ACCESS_TOKEN:",
+  process.env.CHANNEL_ACCESS_TOKEN ? "OK" : "MISSING"
 );
+console.log(
+  "CHANNEL_SECRET:",
+  process.env.CHANNEL_SECRET ? "OK" : "MISSING"
+);
+console.log("BASE_URL:", process.env.BASE_URL || "MISSING");
+console.log("AI_SERVICE_URL:", process.env.AI_SERVICE_URL || "MISSING");
 console.log("SUPABASE_URL:", process.env.SUPABASE_URL ? "OK" : "MISSING");
 console.log("SUPABASE_KEY:", process.env.SUPABASE_KEY ? "OK" : "MISSING");
 
@@ -24,6 +29,7 @@ if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
 }
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 
@@ -38,15 +44,18 @@ app.get("/", (req, res) => {
 });
 
 app.use("/report", reportRouter);
-
-app.use("/hotspot", hotspotRouter);
+app.use("/api/hotspot", hotspotRouter);
+app.use("/api/air", airRoute);
 
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err.message);
   console.error(err.stack);
-  res.status(500).send("Internal Server Error");
+  res.status(500).json({
+    error: "Internal Server Error",
+    detail: err.message,
+  });
 });
 
-app.listen(3000, () => {
-  console.log("Server running on port 3000");
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
