@@ -6,16 +6,27 @@ export async function sendReport(image, location) {
     throw new Error("Image is required");
   }
 
+  const payload = {
+    image,
+    lat: location?.lat ?? null,
+    lng: location?.lng ?? null,
+
+    // เพิ่มข้อมูลพิกัดแยก
+    photo_lat: location?.photo_lat ?? null,
+    photo_lng: location?.photo_lng ?? null,
+
+    current_lat: location?.current_lat ?? null,
+    current_lng: location?.current_lng ?? null,
+
+    location_source: location?.location_source ?? "unknown",
+  };
+
   const res = await fetch(`${BASE_URL}/report`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      image,
-      lat: location?.lat ?? null,
-      lng: location?.lng ?? null,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {

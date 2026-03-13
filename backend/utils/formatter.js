@@ -1,4 +1,6 @@
 export function formatThaiDate(dateValue) {
+  if (!dateValue) return "-";
+
   return new Date(dateValue).toLocaleString("th-TH", {
     timeZone: "Asia/Bangkok",
     dateStyle: "medium",
@@ -24,11 +26,20 @@ export function buildPredictionText(prediction) {
     return "ไม่สามารถวิเคราะห์ภาพได้";
   }
 
-  
+  const lines = [
+    `ประเภทเหตุ: ${formatDisasterLabel(prediction.class)}`,
+  ];
 
-  return [
-    `ประเภทเหตุ: ${formatDisasterLabel(prediction.class).replace(/^[^\s]+\s/, "")}`,
-  ].join("\n");
+  if (prediction.confidence != null) {
+    const confidence =
+      typeof prediction.confidence === "number"
+        ? (prediction.confidence * 100).toFixed(2)
+        : prediction.confidence;
+
+    lines.push(`ความมั่นใจ: ${confidence}%`);
+  }
+
+  return lines.join("\n");
 }
 
 export function buildMapLink(lat, lng) {
@@ -39,18 +50,66 @@ export function buildMapLink(lat, lng) {
   return `https://maps.google.com/?q=${Number(lat).toFixed(5)},${Number(lng).toFixed(5)}`;
 }
 
+export function formatLocationLine(label, lat, lng) {
+  if (lat == null || lng == null) {
+    return `${label}: -`;
+  }
+
+  return `${label}: ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+}
+
+export function formatLocationSource(source) {
+  const map = {
+    image_exif: "พิกัดจากรูปภาพ",
+    device_gps: "พิกัดปัจจุบันของผู้แจ้ง",
+    unknown: "ไม่ทราบแหล่งพิกัด",
+  };
+
+  return map[source] || source || "-";
+}
+
 export function buildReportText({
   title,
   reportTimestamp,
+  reporterLat,
+  reporterLng,
+  photoLat,
+  photoLng,
   photoDate,
 }) {
   const finalDate = photoDate ? new Date(photoDate) : new Date(reportTimestamp);
+
+  // พิกัดเหตุ = พิกัดจากรูป (fallback เป็นผู้แจ้ง)
+  const incidentLat = photoLat ?? reporterLat;
+  const incidentLng = photoLng ?? reporterLng;
 
   const lines = [
     title,
     "",
     `เวลาเหตุการณ์: ${formatThaiDate(finalDate)}`,
   ];
+
+  if (photoLat != null && photoLng != null) {
+    lines.push(
+      `พิกัดจากรูป: ${Number(photoLat).toFixed(5)}, ${Number(photoLng).toFixed(
+        5
+      )}`
+    );
+  }
+
+  if (reporterLat != null && reporterLng != null) {
+    lines.push(
+      `พิกัดผู้แจ้ง: ${Number(reporterLat).toFixed(5)}, ${Number(
+        reporterLng
+      ).toFixed(5)}`
+    );
+  }
+
+  const mapLink = buildMapLink(incidentLat, incidentLng);
+
+  if (mapLink) {
+    lines.push(`แผนที่: ${mapLink}`);
+  }
 
   return lines.join("\n");
 }
@@ -60,10 +119,16 @@ export function buildRescueText(rescue) {
     return "ยังไม่พบหน่วยกู้ภัยที่เหมาะสม";
   }
 
-  return [
+  const lines = [
     "หน่วยที่รับแจ้ง",
     `${rescue.name}`,
-  ].join("\n");
+  ];
+
+  if (rescue.distance_km != null) {
+    lines.push(`ระยะห่าง: ${Number(rescue.distance_km).toFixed(2)} กม.`);
+  }
+
+  return lines.join("\n");
 }
 
 export function shouldSendAlert(prediction) {
