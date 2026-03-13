@@ -78,6 +78,16 @@ def preprocess_image(image: Image.Image):
     return img_array
 
 
+@app.get("/")
+def home():
+    return "ai server ok"
+
+
+@app.get("/health")
+def health():
+    return jsonify({"ok": True})
+
+
 @app.route("/predict", methods=["POST"])
 def predict():
     if "image" not in request.files:
