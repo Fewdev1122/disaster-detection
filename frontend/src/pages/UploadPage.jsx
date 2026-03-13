@@ -10,16 +10,20 @@ export default function UploadPage() {
   const [cameraMode, setCameraMode] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // เก็บ file จริงไว้ เผื่ออ่าน EXIF
-  const [selectedFile, setSelectedFile] = useState(null);
-
-  // พิกัดจากรูป
   const [photoLocation, setPhotoLocation] = useState(null);
-
-  // พิกัดปัจจุบันของเครื่อง
   const [currentLocation, setCurrentLocation] = useState(null);
 
   const fileRef = useRef(null);
+
+  const resetUploadState = () => {
+    setPreview(null);
+    setPhotoLocation(null);
+    setCurrentLocation(null);
+
+    if (fileRef.current) {
+      fileRef.current.value = "";
+    }
+  };
 
   const getLocation = () =>
     new Promise((resolve, reject) => {
@@ -71,18 +75,13 @@ export default function UploadPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setSelectedFile(file);
-
-    // 1) อ่าน GPS จากรูปก่อน
     const gpsFromImage = await readImageGPS(file);
     setPhotoLocation(gpsFromImage);
 
-    // 2) preview รูป
     const reader = new FileReader();
     reader.onloadend = () => setPreview(reader.result);
     reader.readAsDataURL(file);
 
-    // 3) ลองดึง GPS ปัจจุบันของเครื่องไว้ด้วย
     try {
       const liveLocation = await getLocation();
       setCurrentLocation(liveLocation);
@@ -98,8 +97,6 @@ export default function UploadPage() {
     try {
       setLoading(true);
 
-      // ถ้ามีพิกัดจากรูป ใช้พิกัดจากรูปเป็นตำแหน่งเหตุ
-      // ถ้าไม่มี ค่อย fallback ไปใช้พิกัดปัจจุบัน
       let finalLocation = photoLocation;
 
       if (!finalLocation) {
@@ -113,8 +110,6 @@ export default function UploadPage() {
       await sendReport(preview, {
         lat: finalLocation.lat,
         lng: finalLocation.lng,
-
-        // ส่งข้อมูลแยกไว้ด้วย เผื่อ backend อยากเก็บ
         photo_lat: photoLocation?.lat ?? null,
         photo_lng: photoLocation?.lng ?? null,
         current_lat: currentLocation?.lat ?? null,
@@ -123,11 +118,7 @@ export default function UploadPage() {
       });
 
       alert("แจ้งเหตุเรียบร้อย");
-
-      setPreview(null);
-      setSelectedFile(null);
-      setPhotoLocation(null);
-      setCurrentLocation(null);
+      resetUploadState();
     } catch (err) {
       console.error("FULL ERROR:", err);
 
@@ -147,55 +138,46 @@ export default function UploadPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col justify-center px-5 relative">
+      {loading && (
+        <div className="absolute inset-0 bg-black/40 z-50 flex flex-col items-center justify-center">
+          <div className="bg-white rounded-2xl px-6 py-5 shadow-lg text-center">
+            <div className="w-10 h-10 mx-auto border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="mt-4 text-gray-800 font-semibold">กำลังวิเคราะห์ภาพ...</p>
+            <p className="text-sm text-gray-500 mt-1">กรุณารอสักครู่</p>
+          </div>
+        </div>
+      )}
+
       {!cameraMode ? (
         <>
           <UploadArea
             preview={preview}
-            onClick={() => fileRef.current.click()}
+            onClick={() => !loading && fileRef.current.click()}
           />
 
           {preview && (
-            <div className="mt-4 space-y-3">
-              <div className="text-sm text-gray-600 bg-gray-50 rounded-xl p-3">
-                {photoLocation ? (
-                  <>
-                    <div className="font-medium text-green-700">
-                      ใช้พิกัดจากรูปภาพ
-                    </div>
-                    <div>
-                      lat: {photoLocation.lat}, lng: {photoLocation.lng}
-                    </div>
-                  </>
-                ) : currentLocation ? (
-                  <>
-                    <div className="font-medium text-orange-600">
-                      ไม่พบพิกัดในรูป จะใช้พิกัดปัจจุบันของเครื่อง
-                    </div>
-                    <div>
-                      lat: {currentLocation.lat}, lng: {currentLocation.lng}
-                    </div>
-                    {currentLocation.accuracy && (
-                      <div>accuracy: ±{Math.round(currentLocation.accuracy)} m</div>
-                    )}
-                  </>
-                ) : (
-                  <div className="font-medium text-red-600">
-                    ไม่พบพิกัดจากรูป และยังดึงพิกัดปัจจุบันไม่ได้
-                  </div>
-                )}
-              </div>
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={resetUploadState}
+                disabled={loading}
+                className="w-1/3 py-4 bg-gray-200 text-gray-800 rounded-xl font-semibold disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
 
               <button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="w-full py-4 bg-red-600 text-white rounded-xl font-semibold disabled:opacity-50"
+                className="w-2/3 py-4 bg-red-600 text-white rounded-xl font-semibold disabled:opacity-50"
               >
                 {loading ? "กำลังส่ง..." : "แจ้งเหตุ"}
               </button>
             </div>
           )}
 
-          <CameraButton onClick={() => setCameraMode(true)} />
+          {!preview && (
+            <CameraButton onClick={() => setCameraMode(true)} />
+          )}
 
           <input
             type="file"
@@ -208,6 +190,8 @@ export default function UploadPage() {
       ) : (
         <CameraView
           setPreview={setPreview}
+          setCurrentLocation={setCurrentLocation}
+          setPhotoLocation={setPhotoLocation}
           closeCamera={() => setCameraMode(false)}
         />
       )}

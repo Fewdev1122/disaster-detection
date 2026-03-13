@@ -79,10 +79,6 @@ export function buildReportText({
 }) {
   const finalDate = photoDate ? new Date(photoDate) : new Date(reportTimestamp);
 
-  // พิกัดเหตุ = พิกัดจากรูป (fallback เป็นผู้แจ้ง)
-  const incidentLat = photoLat ?? reporterLat;
-  const incidentLng = photoLng ?? reporterLng;
-
   const lines = [
     title,
     "",
@@ -91,24 +87,14 @@ export function buildReportText({
 
   if (photoLat != null && photoLng != null) {
     lines.push(
-      `พิกัดจากรูป: ${Number(photoLat).toFixed(5)}, ${Number(photoLng).toFixed(
-        5
-      )}`
+      `พิกัดจากรูป: ${Number(photoLat).toFixed(5)}, ${Number(photoLng).toFixed(5)}`
     );
   }
 
   if (reporterLat != null && reporterLng != null) {
     lines.push(
-      `พิกัดผู้แจ้ง: ${Number(reporterLat).toFixed(5)}, ${Number(
-        reporterLng
-      ).toFixed(5)}`
+      `พิกัดผู้แจ้ง: ${Number(reporterLat).toFixed(5)}, ${Number(reporterLng).toFixed(5)}`
     );
-  }
-
-  const mapLink = buildMapLink(incidentLat, incidentLng);
-
-  if (mapLink) {
-    lines.push(`แผนที่: ${mapLink}`);
   }
 
   return lines.join("\n");
