@@ -27,14 +27,23 @@ router.post("/", async (req, res) => {
     const metadata = await readImageMetadata(filePath);
 
     let prediction = null;
+
     try {
       prediction = await predictDisaster(filePath);
       console.log("Prediction:", prediction);
     } catch (aiErr) {
-      console.error("AI prediction error:", aiErr.response?.data || aiErr.message);
+      console.error(
+        "AI prediction error:",
+        aiErr.response?.data || aiErr.message
+      );
+
+      return res.status(500).json({
+        error: "AI prediction failed",
+        details: aiErr.response?.data || aiErr.message,
+      });
     }
 
-    if (!shouldSendAlert(prediction)) {
+    if (!prediction || !shouldSendAlert(prediction)) {
       return res.json({
         success: true,
         message: "normal detected, no alert sent",
@@ -116,7 +125,10 @@ router.post("/", async (req, res) => {
     });
   } catch (err) {
     console.error("FULL ERROR:", err.response?.data || err.message);
-    return res.status(500).json({ error: "Push failed" });
+    return res.status(500).json({
+      error: "Push failed",
+      details: err.response?.data || err.message,
+    });
   }
 });
 

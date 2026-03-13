@@ -6,13 +6,14 @@ export async function predictDisaster(imagePath) {
   const form = new FormData();
   form.append("image", fs.createReadStream(imagePath));
 
-  const aiBaseUrl = process.env.AI_SERVICE_URL;
-  if (!aiBaseUrl) {
+  const aiUrl = process.env.AI_SERVICE_URL;
+
+  if (!aiUrl) {
     throw new Error("Missing AI_SERVICE_URL in environment variables");
   }
 
   const response = await axios.post(
-    `${aiBaseUrl}/predict`,
+    aiUrl,
     form,
     {
       headers: {

@@ -12,7 +12,10 @@ dotenv.config({ path: "../.env" });
 console.log("CHANNEL_ACCESS_TOKEN:", process.env.CHANNEL_ACCESS_TOKEN ? "OK" : "MISSING");
 console.log("CHANNEL_SECRET:", process.env.CHANNEL_SECRET ? "OK" : "MISSING");
 console.log("BASE_URL:", process.env.BASE_URL || "MISSING");
-console.log("AI_URL:", process.env.AI_URL || "http://127.0.0.1:5000/predict");
+console.log(
+  "AI_SERVICE_URL:",
+  process.env.AI_SERVICE_URL || "MISSING"
+);
 console.log("SUPABASE_URL:", process.env.SUPABASE_URL ? "OK" : "MISSING");
 console.log("SUPABASE_KEY:", process.env.SUPABASE_KEY ? "OK" : "MISSING");
 
