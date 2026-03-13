@@ -1,0 +1,38 @@
+# env
+.env
+.env.*
+
+# node
+node_modules/
+
+# python venv
+ai_env/
+venv/
+.venv/
+ai/ai_env/
+
+# python cache
+__pycache__/
+*.pyc
+
+# models
+ai/model/
+models/
+*.h5
+*.keras
+*.pt
+*.pth
+*.onnx
+*.keras
+
+# generated files
+images/
+dist/
+dist-ssr/
+*.log
+.DS_Store
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
