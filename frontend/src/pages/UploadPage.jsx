@@ -40,11 +40,7 @@ export default function UploadPage() {
             accuracy: pos.coords.accuracy,
           });
         },
-        (err) => {
-          console.log("GEO ERROR CODE:", err.code);
-          console.log("GEO ERROR MSG:", err.message);
-          reject(err);
-        },
+        (err) => reject(err),
         {
           enableHighAccuracy: true,
           timeout: 10000,
@@ -118,6 +114,7 @@ export default function UploadPage() {
       });
 
       alert("แจ้งเหตุเรียบร้อย");
+
       resetUploadState();
     } catch (err) {
       console.error("FULL ERROR:", err);
@@ -142,8 +139,14 @@ export default function UploadPage() {
         <div className="absolute inset-0 bg-black/40 z-50 flex flex-col items-center justify-center">
           <div className="bg-white rounded-2xl px-6 py-5 shadow-lg text-center">
             <div className="w-10 h-10 mx-auto border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-            <p className="mt-4 text-gray-800 font-semibold">กำลังวิเคราะห์ภาพ...</p>
-            <p className="text-sm text-gray-500 mt-1">กรุณารอสักครู่</p>
+
+            <p className="mt-4 text-gray-800 font-semibold">
+              กำลังวิเคราะห์ภาพ...
+            </p>
+
+            <p className="text-sm text-gray-500 mt-1">
+              กรุณารอสักครู่
+            </p>
           </div>
         </div>
       )}
@@ -176,7 +179,9 @@ export default function UploadPage() {
           )}
 
           {!preview && (
-            <CameraButton onClick={() => setCameraMode(true)} />
+            <CameraButton
+              onClick={() => setCameraMode(true)}
+            />
           )}
 
           <input
