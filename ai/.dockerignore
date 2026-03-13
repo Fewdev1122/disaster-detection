@@ -1,0 +1,17 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.git
+.gitignore
+.env
+venv
+env
+node_modules
+dataset
+datasets
+data
+uploads
+tests
+*.ipynb
+.DS_Store
