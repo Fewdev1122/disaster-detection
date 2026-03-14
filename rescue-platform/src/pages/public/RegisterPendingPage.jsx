@@ -1,8 +1,9 @@
-import Layout from "../../components/Layout";
+import Layout from "../components/Layout";
 
 export default function RegisterPendingPage({
   requestId = "-",
   status = "pending_review",
+  connectCode = "-",
   onRegisterAnother,
 }) {
   return (
@@ -15,7 +16,7 @@ export default function RegisterPendingPage({
                 ส่งคำขอสมัครสำเร็จ
               </h1>
               <p className="mt-1 text-sm text-gray-500">
-                ระบบได้รับข้อมูลหน่วยกู้ภัยของคุณแล้ว และกำลังรอผู้ดูแลตรวจสอบ
+                ระบบได้รับข้อมูลหน่วยกู้ภัยของคุณแล้ว กรุณาผูก LINE กับระบบก่อนรอผู้ดูแลตรวจสอบ
               </p>
             </div>
 
@@ -25,8 +26,7 @@ export default function RegisterPendingPage({
                   สถานะปัจจุบัน: {status}
                 </p>
                 <p className="mt-1 text-sm text-amber-700">
-                  หลังผู้ดูแลอนุมัติแล้ว ระบบสามารถต่อไปยังขั้นตอนเชื่อม LINE กลุ่ม
-                  และเปิดรับแจ้งเหตุอัตโนมัติได้
+                  ก่อนที่ผู้ดูแลจะอนุมัติ คุณต้องแอด LINE OA ของระบบและส่งรหัสผูกตัวตนด้านล่างในแชตส่วนตัวกับบอทก่อน
                 </p>
               </div>
 
@@ -46,14 +46,26 @@ export default function RegisterPendingPage({
                 </div>
               </div>
 
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4">
+                <p className="text-sm font-medium text-red-700">
+                  รหัสผูก LINE
+                </p>
+                <p className="mt-2 text-lg font-bold tracking-wide text-red-800">
+                  {connectCode}
+                </p>
+                <p className="mt-2 text-sm text-red-700">
+                  กรุณาแอด LINE OA ของระบบ แล้วส่งรหัสนี้ในแชตส่วนตัวกับบอทเพื่อผูกบัญชี LINE ของคุณ
+                </p>
+              </div>
+
               <div className="rounded-2xl border border-gray-200 px-4 py-4">
                 <p className="text-sm font-medium text-gray-900">
                   ขั้นตอนถัดไป
                 </p>
                 <div className="mt-2 space-y-2 text-sm text-gray-600">
-                  <p>• รอผู้ดูแลระบบตรวจสอบข้อมูลหน่วยกู้ภัย</p>
-                  <p>• ตรวจสอบว่าเบอร์โทรและตำแหน่งที่ตั้งถูกต้อง</p>
-                  <p>• เมื่อผ่านอนุมัติแล้วจึงค่อยเชื่อม LINE กลุ่ม</p>
+                  <p>1. แอด LINE OA ของระบบ</p>
+                  <p>2. ส่งรหัสผูก LINE นี้ในแชตส่วนตัวกับบอท</p>
+                  <p>3. หลังผูก LINE สำเร็จ ผู้ดูแลจึงจะสามารถอนุมัติคำขอได้</p>
                 </div>
               </div>
 

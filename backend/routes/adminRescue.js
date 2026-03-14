@@ -10,11 +10,7 @@ function generateConnectCode() {
 }
 
 async function pushLineMessage(to, messages) {
-  console.log("LINE PUSH TO:", to);
-  console.log("LINE MESSAGE:", messages);
   const channelAccessToken = process.env.CHANNEL_ACCESS_TOKEN;
-  console.log("LINE RESPONSE STATUS:", response.status);
-  console.log("LINE RESPONSE RAW:", rawText);
 
   if (!channelAccessToken) {
     return {
@@ -32,6 +28,18 @@ async function pushLineMessage(to, messages) {
     };
   }
 
+  // กันกรณีเอาเบอร์โทรมาใส่แทน line_user_id
+  if (!String(to).startsWith("U")) {
+    return {
+      ok: false,
+      skipped: true,
+      reason: "invalid line_user_id format",
+    };
+  }
+
+  console.log("LINE PUSH TO:", to);
+  console.log("LINE MESSAGE:", messages);
+
   const response = await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
     headers: {
@@ -45,6 +53,9 @@ async function pushLineMessage(to, messages) {
   });
 
   const rawText = await response.text();
+
+  console.log("LINE RESPONSE STATUS:", response.status);
+  console.log("LINE RESPONSE RAW:", rawText);
 
   let data = null;
   try {
@@ -71,6 +82,7 @@ async function pushLineMessage(to, messages) {
 }
 
 // ดึงรายการคำขอสมัครหน่วยกู้ภัย
+// ใช้ได้ทั้งทั้งหมด หรือ filter status เช่น ?status=pending_review
 router.get("/rescue-requests", async (req, res) => {
   try {
     const { status } = req.query;
@@ -131,19 +143,44 @@ router.get("/rescue-requests/:id", async (req, res) => {
   }
 });
 
-// อนุมัติคำขอ + สร้าง connect code + แจ้ง LINE
+// อนุมัติคำขอ
+// เงื่อนไข: ต้องผูก LINE แล้ว (line_user_id ต้องมี)
 router.patch("/rescue-requests/:id/approve", async (req, res) => {
   try {
     const { id } = req.params;
     const { review_note = "อนุมัติเรียบร้อย" } = req.body || {};
 
-    const connectCode = generateConnectCode();
+    const { data: existingUnit, error: existingError } = await supabase
+      .from("rescue_units")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    if (!existingUnit) {
+      return res.status(404).json({
+        message: "ไม่พบคำขอสมัครนี้",
+      });
+    }
+
+    if (!existingUnit.line_user_id) {
+      return res.status(400).json({
+        message:
+          "ยังไม่สามารถอนุมัติได้ เนื่องจากผู้สมัครยังไม่ได้ผูกบัญชี LINE กับระบบ",
+      });
+    }
 
     const payload = {
       status: "approved",
       review_note,
-      connect_code: connectCode,
-      connect_code_used: false,
+      connect_code: existingUnit.connect_code || generateConnectCode(),
+      connect_code_used:
+        typeof existingUnit.connect_code_used === "boolean"
+          ? existingUnit.connect_code_used
+          : false,
     };
 
     const { data, error } = await supabase
@@ -166,19 +203,28 @@ router.patch("/rescue-requests/:id/approve", async (req, res) => {
     };
 
     if (data?.line_user_id) {
-      lineNotifyResult = await pushLineMessage(data.line_user_id, [
-        {
-          type: "text",
-          text:
-            `✅ คำขอสมัครหน่วยกู้ภัยของคุณได้รับการอนุมัติแล้ว\n\n` +
-            `หน่วย: ${data.name || "-"}\n` +
-            `สถานะ: approved\n\n` +
-            `ขั้นตอนถัดไป:\n` +
-            `1) เชิญบอทเข้ากลุ่ม LINE ของหน่วยกู้ภัย\n` +
-            `2) พิมพ์รหัสนี้ในกลุ่มเพื่อเชื่อมระบบ\n\n` +
-            `รหัสเชื่อมกลุ่ม: ${connectCode}`,
-        },
-      ]);
+      try {
+        lineNotifyResult = await pushLineMessage(data.line_user_id, [
+          {
+            type: "text",
+            text:
+              `✅ คำขอสมัครหน่วยกู้ภัยของคุณได้รับการอนุมัติแล้ว\n\n` +
+              `หน่วย: ${data.name || "-"}\n` +
+              `สถานะ: approved\n\n` +
+              `ขั้นตอนถัดไป:\n` +
+              `1) เชิญบอทเข้ากลุ่ม LINE ของหน่วยกู้ภัย\n` +
+              `2) พิมพ์รหัสนี้ในกลุ่มเพื่อเชื่อมระบบ\n\n` +
+              `รหัสเชื่อมกลุ่ม: ${data.connect_code}`,
+          },
+        ]);
+      } catch (lineErr) {
+        console.error("LINE PUSH ERROR AFTER APPROVE:", lineErr);
+        lineNotifyResult = {
+          ok: false,
+          skipped: false,
+          reason: lineErr.message || "LINE push failed",
+        };
+      }
     }
 
     return res.json({
@@ -195,11 +241,27 @@ router.patch("/rescue-requests/:id/approve", async (req, res) => {
   }
 });
 
-// ปฏิเสธคำขอ + แจ้ง LINE
+// ปฏิเสธคำขอ
 router.patch("/rescue-requests/:id/reject", async (req, res) => {
   try {
     const { id } = req.params;
     const { review_note = "ไม่ผ่านการตรวจสอบ" } = req.body || {};
+
+    const { data: existingUnit, error: existingError } = await supabase
+      .from("rescue_units")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    if (!existingUnit) {
+      return res.status(404).json({
+        message: "ไม่พบคำขอสมัครนี้",
+      });
+    }
 
     const payload = {
       status: "rejected",
@@ -224,22 +286,27 @@ router.patch("/rescue-requests/:id/reject", async (req, res) => {
       skipped: true,
       reason: "line_user_id missing",
     };
-    console.log("APPROVED UNIT:", data);
-    console.log("LINE USER ID:", data?.line_user_id);
 
     if (data?.line_user_id) {
-      console.log("TRY PUSH LINE MESSAGE");
-      lineNotifyResult = await pushLineMessage(data.line_user_id, [
-        {
-          type: "text",
-          text:
-            `❌ คำขอสมัครหน่วยกู้ภัยของคุณยังไม่ผ่านการตรวจสอบ\n\n` +
-            `หน่วย: ${data.name || "-"}\n` +
-            `สถานะ: rejected\n` +
-            `หมายเหตุ: ${review_note}`,
-        },
-      ]);
-      console.log("LINE PUSH RESULT:", lineNotifyResult);
+      try {
+        lineNotifyResult = await pushLineMessage(data.line_user_id, [
+          {
+            type: "text",
+            text:
+              `❌ คำขอสมัครหน่วยกู้ภัยของคุณยังไม่ผ่านการตรวจสอบ\n\n` +
+              `หน่วย: ${data.name || "-"}\n` +
+              `สถานะ: rejected\n` +
+              `หมายเหตุ: ${review_note}`,
+          },
+        ]);
+      } catch (lineErr) {
+        console.error("LINE PUSH ERROR AFTER REJECT:", lineErr);
+        lineNotifyResult = {
+          ok: false,
+          skipped: false,
+          reason: lineErr.message || "LINE push failed",
+        };
+      }
     }
 
     return res.json({

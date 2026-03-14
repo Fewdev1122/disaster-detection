@@ -110,3 +110,44 @@ export async function bindRescueGroupByCode({ connectCode, groupId }) {
 
   return data;
 }
+
+export async function bindRescueUserByCode({ connectCode, lineUserId }) {
+  const normalizedCode = String(connectCode || "").trim().toUpperCase();
+
+  if (!normalizedCode) {
+    throw new Error("ไม่พบรหัสผูก LINE");
+  }
+
+  if (!lineUserId) {
+    throw new Error("ไม่พบ lineUserId");
+  }
+
+  const { data: rescueUnit, error: findError } = await supabase
+    .from("rescue_units")
+    .select("*")
+    .eq("connect_code", normalizedCode)
+    .eq("connect_code_used", false)
+    .single();
+
+  if (findError || !rescueUnit) {
+    throw new Error("ไม่พบรหัสผูก LINE หรือรหัสถูกใช้ไปแล้ว");
+  }
+
+  const { data, error } = await supabase
+    .from("rescue_units")
+    .update({
+      line_user_id: lineUserId,
+      connect_code_used: true,
+    })
+    .eq("id", rescueUnit.id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  clearRescueCache();
+
+  return data;
+}

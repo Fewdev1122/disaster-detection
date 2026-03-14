@@ -122,23 +122,28 @@ export default function RegisterPage() {
   };
 
   if (submittedResult) {
-    return (
-      <RegisterPendingPage
-        requestId={
-          submittedResult?.request_id ||
-          submittedResult?.id ||
-          submittedResult?.data?.id ||
-          "-"
-        }
-        status={
-          submittedResult?.status ||
-          submittedResult?.data?.status ||
-          "pending_review"
-        }
-        onRegisterAnother={() => setSubmittedResult(null)}
-      />
-    );
-  }
+  return (
+    <RegisterPendingPage
+      requestId={
+        submittedResult?.request_id ||
+        submittedResult?.id ||
+        submittedResult?.data?.id ||
+        "-"
+      }
+      status={
+        submittedResult?.status ||
+        submittedResult?.data?.status ||
+        "pending_review"
+      }
+      connectCode={
+        submittedResult?.connect_code ||
+        submittedResult?.data?.connect_code ||
+        "-"
+      }
+      onRegisterAnother={() => setSubmittedResult(null)}
+    />
+  );
+}
 
   return (
     <Layout>

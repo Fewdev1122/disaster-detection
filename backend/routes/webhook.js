@@ -16,6 +16,7 @@ import {
 import { predictDisaster } from "../services/aiService.js";
 import {
   bindRescueGroupByCode,
+  bindRescueUserByCode,
   findNearestRescue,
 } from "../services/rescueService.js";
 import { pushToRescueGroup } from "../services/lineService.js";
@@ -73,8 +74,52 @@ router.post("/", lineMiddleware, async (req, res) => {
           const incomingText = event.message.text || "";
           const connectCode = extractConnectCode(incomingText);
 
-          // กรณีเชื่อมกลุ่ม: ต้องเป็น text ใน group/room และมี connect code
-          if (connectCode && isGroupLikeSource(event.source?.type)) {
+          // 5.1 ผูก LINE user ในแชตส่วนตัว
+          if (connectCode && event.source?.type === "user") {
+            try {
+              const lineUserId = event.source?.userId;
+
+              if (!lineUserId) {
+                await lineClient.replyMessage(event.replyToken, {
+                  type: "text",
+                  text: "ไม่พบ LINE User ID สำหรับการผูกบัญชี",
+                });
+                continue;
+              }
+
+              const boundUnit = await bindRescueUserByCode({
+                connectCode,
+                lineUserId,
+              });
+
+              await lineClient.replyMessage(event.replyToken, {
+                type: "text",
+                text:
+                  `✅ ผูกบัญชี LINE สำเร็จ\n\n` +
+                  `หน่วย: ${boundUnit.name || "-"}\n` +
+                  `ตอนนี้ผู้ดูแลสามารถตรวจสอบและอนุมัติคำขอของคุณได้แล้ว`,
+              });
+
+              continue;
+            } catch (bindErr) {
+              console.error("BIND USER ERROR:", bindErr);
+
+              await lineClient.replyMessage(event.replyToken, {
+                type: "text",
+                text:
+                  `❌ ผูกบัญชี LINE ไม่สำเร็จ\n` +
+                  `${bindErr.message || "กรุณาตรวจสอบรหัสอีกครั้ง"}`,
+              });
+
+              continue;
+            }
+          }
+
+          // 5.2 ผูกกลุ่ม หลัง invite bot เข้ากลุ่มแล้ว
+          if (
+            connectCode &&
+            (event.source?.type === "group" || event.source?.type === "room")
+          ) {
             try {
               const groupId = event.source?.groupId || event.source?.roomId;
 

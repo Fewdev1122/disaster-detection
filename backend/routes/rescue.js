@@ -3,6 +3,11 @@ import supabase from "../config/supabase.js";
 
 const router = express.Router();
 
+function generateConnectCode() {
+  const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `RCU-${randomPart}`;
+}
+
 router.post("/register", async (req, res) => {
   try {
     const {
@@ -12,7 +17,6 @@ router.post("/register", async (req, res) => {
       province,
       district,
       address,
-      line_user_id,
       lat,
       lng,
       coverage_radius_km,
@@ -24,6 +28,8 @@ router.post("/register", async (req, res) => {
       });
     }
 
+    const connectCode = generateConnectCode();
+
     const { data, error } = await supabase
       .from("rescue_units")
       .insert([
@@ -34,12 +40,15 @@ router.post("/register", async (req, res) => {
           province: province || null,
           district: district || null,
           address: address || null,
-          line_user_id: line_user_id || null,
           base_lat: lat,
           base_lng: lng,
           coverage_km: coverage_radius_km || 10,
           status: "pending_review",
           line_group_id: null,
+          line_user_id: null,
+          review_note: null,
+          connect_code: connectCode,
+          connect_code_used: false,
         },
       ])
       .select()
@@ -52,6 +61,7 @@ router.post("/register", async (req, res) => {
     return res.status(201).json({
       message: "สมัครสำเร็จ",
       status: "pending_review",
+      connect_code: connectCode,
       data,
     });
   } catch (err) {

@@ -117,11 +117,10 @@ export default function AdminRescueRequestsPage() {
                     key={item.value}
                     type="button"
                     onClick={() => setStatusFilter(item.value)}
-                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                      statusFilter === item.value
-                        ? "bg-red-500 text-white"
-                        : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                    }`}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${statusFilter === item.value
+                      ? "bg-red-500 text-white"
+                      : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                      }`}
                   >
                     {item.label}
                   </button>
@@ -231,6 +230,10 @@ export default function AdminRescueRequestsPage() {
                           </span>{" "}
                           {item.line_group_id || "-"}
                         </p>
+                        <p>
+                          <span className="font-medium text-gray-800">ผูก LINE แล้ว:</span>{" "}
+                          {item.line_user_id ? "ใช่" : "ยังไม่ผูก"}
+                        </p>
                         {item.review_note && (
                           <p className="md:col-span-2">
                             <span className="font-medium text-gray-800">
@@ -238,6 +241,8 @@ export default function AdminRescueRequestsPage() {
                             </span>{" "}
                             {item.review_note}
                           </p>
+
+
                         )}
                       </div>
                     </div>
@@ -257,13 +262,11 @@ export default function AdminRescueRequestsPage() {
 
                         <button
                           type="button"
-                          disabled={actionLoadingId === item.id}
+                          disabled={actionLoadingId === item.id || !item.line_user_id}
                           onClick={() => handleApprove(item.id)}
                           className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
                         >
-                          {actionLoadingId === item.id
-                            ? "กำลังดำเนินการ..."
-                            : "อนุมัติ"}
+                          {actionLoadingId === item.id ? "กำลังดำเนินการ..." : "อนุมัติ"}
                         </button>
                       </div>
                     )}
