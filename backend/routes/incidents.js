@@ -5,7 +5,7 @@ const router = express.Router();
 
 router.get("/recent", async (req, res) => {
   try {
-    const limit = Number(req.query.limit || 10);
+    const limit = Number(req.query.limit || 5);
 
     const { data, error } = await supabase
       .from("incident_reports")

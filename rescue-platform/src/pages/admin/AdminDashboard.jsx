@@ -6,6 +6,7 @@ import {
   getRescueRequests,
 } from "../../services/adminRescueService";
 import { getRecentIncidents } from "../../services/incidentService";
+
 function cx(...classes) {
   return classes.filter(Boolean).join(" ");
 }
@@ -22,6 +23,8 @@ function toneBadge(tone) {
       return "bg-slate-100 text-slate-700 border border-slate-200";
   }
 }
+
+
 
 function Panel({ title, subtitle, right, children, className = "" }) {
   return (
@@ -54,7 +57,12 @@ function SummaryBar({ items }) {
           </p>
           <div className="mt-2 flex items-center gap-3">
             <span className="text-2xl font-semibold text-slate-900">{item.value}</span>
-            <span className={cx("inline-flex rounded px-2 py-0.5 text-xs font-medium", toneBadge(item.tone))}>
+            <span
+              className={cx(
+                "inline-flex rounded px-2 py-0.5 text-xs font-medium",
+                toneBadge(item.tone)
+              )}
+            >
               {item.note}
             </span>
           </div>
@@ -114,7 +122,12 @@ function ActionRequiredPanel({
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-lg font-semibold text-slate-900">{item.count}</span>
-                  <span className={cx("inline-flex rounded px-2 py-0.5 text-xs font-medium", toneBadge(item.tone))}>
+                  <span
+                    className={cx(
+                      "inline-flex rounded px-2 py-0.5 text-xs font-medium",
+                      toneBadge(item.tone)
+                    )}
+                  >
                     Open
                   </span>
                 </div>
@@ -169,12 +182,12 @@ function DataTable({ columns, rows, renderRow, emptyText = "No data" }) {
   );
 }
 
-function PendingApplicationsTable({ requests }) {
+function RecentIncidentsTable({ incidents }) {
   const columns = [
     { key: "type", label: "Type" },
     { key: "confidence", label: "Confidence" },
     { key: "unit", label: "Unit" },
-    { key: "createdAt", label: "Reported At" },
+    { key: "reportedAt", label: "Reported At" },
     { key: "image", label: "Image" },
   ];
 
@@ -190,47 +203,54 @@ function PendingApplicationsTable({ requests }) {
     >
       <DataTable
         columns={columns}
-        rows={requests}
+        rows={incidents}
+        emptyText="ยังไม่มีข้อมูลเหตุล่าสุด"
         renderRow={(item) => (
-          
           <tr key={item.id} className="hover:bg-slate-50">
-
             <td className="px-4 py-3">
-              <span className="font-medium text-red-600">
-                {item.disaster_type}
-                
+              <span
+                className={cx(
+                  "inline-flex rounded px-2 py-1 text-xs font-medium",
+                  item.disaster_type
+                )}
+              >
+                {item.disaster_type || "-"}
               </span>
             </td>
 
-            <td className="px-4 py-3 text-sm">
-              {item.confidence
-  ? `${(Number(item.confidence) * 100).toFixed(0)}%`
-  : "-"}
+            <td className="px-4 py-3 text-sm text-slate-700">
+              {item.confidence != null
+                ? `${(Number(item.confidence) * 100).toFixed(0)}%`
+                : "-"}
+            </td>
+
+            <td className="px-4 py-3 text-sm text-slate-700">
+              {item.rescue_units?.name || item.rescue_unit_name || "-"}
+            </td>
+
+            <td className="px-4 py-3 text-sm text-slate-700">
+              {item.created_at
+                ? new Date(item.created_at).toLocaleTimeString("th-TH", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "-"}
             </td>
 
             <td className="px-4 py-3 text-sm">
-              {item.rescue_units?.name || "-"}
-            </td>
-
-            <td className="px-4 py-3 text-sm">
-              {new Date(item.created_at).toLocaleTimeString("th-TH", {
-                hour: "2-digit",
-                minute: "2-digit"
-              })}
-            </td>
-
-            <td className="px-4 py-3">
               {item.image_url ? (
                 <a
                   href={item.image_url}
                   target="_blank"
-                  className="text-blue-600 hover:underline text-sm"
+                  rel="noreferrer"
+                  className="text-blue-600 hover:underline"
                 >
                   View
                 </a>
-              ) : "-"}
+              ) : (
+                "-"
+              )}
             </td>
-
           </tr>
         )}
       />
@@ -258,40 +278,44 @@ function MiniStatsPanel({ title, subtitle, items, formatter = (v) => v }) {
 export default function AdminDashboard() {
   const [units, setUnits] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [recentIncidents, setRecentIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingRequests, setLoadingRequests] = useState(true);
+  const [loadingIncidents, setLoadingIncidents] = useState(true);
   const [error, setError] = useState("");
-
 
   const loadDashboardData = async () => {
     try {
       setError("");
       setLoading(true);
       setLoadingRequests(true);
+      setLoadingIncidents(true);
 
-      const [unitsData, requestsData] = await Promise.all([
+      const [unitsData, requestsData, incidentsData] = await Promise.all([
         getApprovedRescueUnits(),
         getRescueRequests("pending_review"),
+        getRecentIncidents(),
       ]);
-      const incidents = await getRecentIncidents();
 
       console.log("unitsData:", unitsData);
       console.log("requestsData:", requestsData);
+      console.log("incidentsData:", incidentsData);
 
       setUnits(unitsData || []);
       setPendingRequests(requestsData || []);
+      setRecentIncidents(incidentsData || []);
     } catch (err) {
       console.error(err);
       setError(err.message || "โหลดข้อมูล dashboard ไม่สำเร็จ");
     } finally {
       setLoading(false);
       setLoadingRequests(false);
+      setLoadingIncidents(false);
     }
   };
 
   useEffect(() => {
     loadDashboardData();
-
   }, []);
 
   const summaryItems = useMemo(() => {
@@ -344,8 +368,8 @@ export default function AdminDashboard() {
     const avgCoverage =
       units.length > 0
         ? (
-          units.reduce((sum, u) => sum + Number(u.coverage_km || 0), 0) / units.length
-        ).toFixed(1)
+            units.reduce((sum, u) => sum + Number(u.coverage_km || 0), 0) / units.length
+          ).toFixed(1)
         : "0.0";
 
     return [
@@ -415,12 +439,12 @@ export default function AdminDashboard() {
           </div>
 
           <div className="mt-4">
-            {loadingRequests ? (
+            {loadingIncidents ? (
               <div className="border border-slate-200 bg-white px-4 py-10 text-sm text-slate-500">
-                กำลังโหลดรายการคำขอ...
+                กำลังโหลดเหตุล่าสุด...
               </div>
             ) : (
-              <PendingApplicationsTable requests={pendingRequests} />
+              <RecentIncidentsTable incidents={recentIncidents} />
             )}
           </div>
 
