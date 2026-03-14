@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { loadGoogleMaps } from "../utils/loadGoogleMaps";
 
 const DEFAULT_CENTER = { lat: 19.9105, lng: 99.8406 };
+const DEFAULT_ZOOM = 13;
+const SELECTED_ZOOM = 15;
 
 function extractProvinceAndDistrict(addressComponents = []) {
   let province = "";
@@ -29,57 +31,116 @@ function extractProvinceAndDistrict(addressComponents = []) {
   return { province, district };
 }
 
+function isValidNumber(value) {
+  return typeof value === "number" && !Number.isNaN(value);
+}
+
+function normalizeLatLng(latOrObject, lngMaybe) {
+  if (isValidNumber(latOrObject) && isValidNumber(lngMaybe)) {
+    return { lat: latOrObject, lng: lngMaybe };
+  }
+
+  if (!latOrObject) return null;
+
+  if (
+    typeof latOrObject.lat === "function" &&
+    typeof latOrObject.lng === "function"
+  ) {
+    return {
+      lat: latOrObject.lat(),
+      lng: latOrObject.lng(),
+    };
+  }
+
+  if (isValidNumber(latOrObject.lat) && isValidNumber(latOrObject.lng)) {
+    return {
+      lat: latOrObject.lat,
+      lng: latOrObject.lng,
+    };
+  }
+
+  return null;
+}
+
 export default function MapPicker({ value, onChange, radiusKm = 10 }) {
+  const googleRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const circleRef = useRef(null);
   const geocoderRef = useRef(null);
-  const googleRef = useRef(null);
 
   const mapContainerRef = useRef(null);
-  const autocompleteHostRef = useRef(null);
+  const listenersRef = useRef([]);
+  const latestGeocodeRequestRef = useRef(0);
+  const searchDebounceRef = useRef(null);
+  const sessionTokenRef = useRef(null);
 
   const [loadingAddress, setLoadingAddress] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [error, setError] = useState("");
 
-  const hasSelectedLocation =
-    typeof value?.lat === "number" && typeof value?.lng === "number";
+  const [searchText, setSearchText] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
 
-  async function updateLocation(lat, lng, shouldPan = false) {
+  const hasSelectedLocation =
+    isValidNumber(value?.lat) && isValidNumber(value?.lng);
+
+  const getRadiusMeters = () => Math.max(0, Number(radiusKm || 0)) * 1000;
+
+  const clearAllListeners = () => {
+    const google = googleRef.current;
+    if (google?.maps?.event) {
+      listenersRef.current.forEach((listener) => {
+        google.maps.event.removeListener(listener);
+      });
+    }
+    listenersRef.current = [];
+  };
+
+  const showMarkerAndCircle = () => {
+    if (!mapRef.current || !markerRef.current || !circleRef.current) return;
+
+    if (!markerRef.current.map) {
+      markerRef.current.map = mapRef.current;
+    }
+
+    if (!circleRef.current.getMap()) {
+      circleRef.current.setMap(mapRef.current);
+    }
+  };
+
+  const hideMarkerAndCircle = () => {
+    if (markerRef.current) markerRef.current.map = null;
+    if (circleRef.current) circleRef.current.setMap(null);
+  };
+
+  const syncVisualPosition = (latLng) => {
+    if (!latLng || !markerRef.current || !circleRef.current) return;
+
+    showMarkerAndCircle();
+    markerRef.current.position = latLng;
+    circleRef.current.setCenter(latLng);
+  };
+
+  const reverseGeocodeAndEmit = async (lat, lng) => {
+    if (!geocoderRef.current) return;
+
+    const requestId = ++latestGeocodeRequestRef.current;
+
     try {
       setLoadingAddress(true);
       setError("");
 
-      if (
-        !mapRef.current ||
-        !markerRef.current ||
-        !circleRef.current ||
-        !geocoderRef.current
-      ) {
-        return;
-      }
+      const response = await geocoderRef.current.geocode({
+        location: { lat, lng },
+      });
 
-      const latLng = { lat, lng };
+      if (requestId !== latestGeocodeRequestRef.current) return;
 
-      if (!markerRef.current.map) {
-        markerRef.current.map = mapRef.current;
-      }
-
-      if (!circleRef.current.getMap()) {
-        circleRef.current.setMap(mapRef.current);
-      }
-
-      markerRef.current.position = latLng;
-      circleRef.current.setCenter(latLng);
-
-      if (shouldPan) {
-        mapRef.current.panTo(latLng);
-        mapRef.current.setZoom(15);
-      }
-
-      const res = await geocoderRef.current.geocode({ location: latLng });
-      const result = res.results?.[0];
+      const result = response.results?.[0];
 
       if (!result) {
         onChange?.({
@@ -93,8 +154,10 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
       }
 
       const { province, district } = extractProvinceAndDistrict(
-        result.address_components
+        result.address_components || []
       );
+
+      setSearchText(result.formatted_address || "");
 
       onChange?.({
         lat,
@@ -105,18 +168,156 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
       });
     } catch (err) {
       console.error(err);
-      setError("ดึงข้อมูลตำแหน่งไม่สำเร็จ");
+      if (requestId === latestGeocodeRequestRef.current) {
+        setError("ดึงข้อมูลตำแหน่งไม่สำเร็จ");
+      }
+    } finally {
+      if (requestId === latestGeocodeRequestRef.current) {
+        setLoadingAddress(false);
+      }
+    }
+  };
+
+  const updateLocation = async (lat, lng, options = {}) => {
+    const { pan = false, zoom = true, reverseGeocode = true } = options;
+
+    if (!mapRef.current || !markerRef.current || !circleRef.current) return;
+
+    const latLng = normalizeLatLng(lat, lng);
+    if (!latLng) return;
+
+    syncVisualPosition(latLng);
+
+    if (pan) {
+      mapRef.current.panTo(latLng);
+      if (zoom) mapRef.current.setZoom(SELECTED_ZOOM);
+    }
+
+    if (reverseGeocode) {
+      await reverseGeocodeAndEmit(latLng.lat, latLng.lng);
+    } else {
+      onChange?.({
+        lat: latLng.lat,
+        lng: latLng.lng,
+        province: value?.province || "",
+        district: value?.district || "",
+        address: value?.address || "",
+      });
+    }
+  };
+
+  const fetchSuggestions = async (input) => {
+    const google = googleRef.current;
+    if (!google || !input.trim()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    try {
+      setLoadingSuggestions(true);
+      setError("");
+
+      const { AutocompleteSuggestion, AutocompleteSessionToken } =
+        await google.maps.importLibrary("places");
+
+      if (!sessionTokenRef.current) {
+        sessionTokenRef.current = new AutocompleteSessionToken();
+      }
+
+      const request = {
+        input,
+        sessionToken: sessionTokenRef.current,
+        includedRegionCodes: ["th"],
+        language: "th",
+      };
+
+      const bounds = mapRef.current?.getBounds?.();
+      if (bounds) {
+        request.locationBias = bounds;
+      }
+
+      const { suggestions: result = [] } =
+        await AutocompleteSuggestion.fetchAutocompleteSuggestions(request);
+
+      setSuggestions(result);
+      setShowSuggestions(true);
+      setActiveIndex(-1);
+    } catch (err) {
+      console.error(err);
+      setError("ค้นหาสถานที่ไม่สำเร็จ");
+      setSuggestions([]);
+      setShowSuggestions(false);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  const handleSelectSuggestion = async (suggestion) => {
+    try {
+      setError("");
+      setLoadingAddress(true);
+
+      const prediction = suggestion?.placePrediction;
+      if (!prediction) {
+        setError("ไม่พบสถานที่ที่ค้นหา");
+        return;
+      }
+
+      const place = prediction.toPlace();
+
+      await place.fetchFields({
+        fields: [
+          "displayName",
+          "formattedAddress",
+          "location",
+          "addressComponents",
+        ],
+      });
+
+      const location = normalizeLatLng(place.location);
+      if (!location) {
+        setError("ไม่พบพิกัดของสถานที่นี้");
+        return;
+      }
+
+      syncVisualPosition(location);
+      mapRef.current?.panTo(location);
+      mapRef.current?.setZoom(SELECTED_ZOOM);
+
+      const { province, district } = extractProvinceAndDistrict(
+        place.addressComponents || []
+      );
+
+      const address =
+        place.formattedAddress ||
+        place.displayName ||
+        `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
+
+      setSearchText(address);
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+
+      onChange?.({
+        lat: location.lat,
+        lng: location.lng,
+        province,
+        district,
+        address,
+      });
+
+      sessionTokenRef.current = null;
+    } catch (err) {
+      console.error(err);
+      setError("เลือกสถานที่ไม่สำเร็จ");
     } finally {
       setLoadingAddress(false);
     }
-  }
+  };
 
   useEffect(() => {
     let isMounted = true;
-    let mapClickListener = null;
-    let markerDragListener = null;
-    let autocompleteElement = null;
-    let handlePlaceSelect = null;
 
     async function init() {
       try {
@@ -125,7 +326,7 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
 
         googleRef.current = google;
 
-        const { Map } = await google.maps.importLibrary("maps");
+        const { Map, Circle } = await google.maps.importLibrary("maps");
         const { AdvancedMarkerElement } = await google.maps.importLibrary(
           "marker"
         );
@@ -139,7 +340,7 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
 
         mapRef.current = new Map(mapContainerRef.current, {
           center: initialCenter,
-          zoom: hasSelectedLocation ? 15 : 13,
+          zoom: hasSelectedLocation ? SELECTED_ZOOM : DEFAULT_ZOOM,
           mapId: "DEMO_MAP_ID",
           mapTypeControl: false,
           streetViewControl: false,
@@ -151,12 +352,13 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
           map: hasSelectedLocation ? mapRef.current : null,
           position: initialCenter,
           gmpDraggable: true,
+          title: "ตำแหน่งหน่วยกู้ภัย",
         });
 
-        circleRef.current = new google.maps.Circle({
+        circleRef.current = new Circle({
           map: hasSelectedLocation ? mapRef.current : null,
           center: initialCenter,
-          radius: Number(radiusKm || 0) * 1000,
+          radius: getRadiusMeters(),
           strokeColor: "#ef4444",
           strokeOpacity: 1,
           strokeWeight: 2,
@@ -165,98 +367,49 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
           clickable: false,
         });
 
-        markerDragListener = markerRef.current.addListener("dragend", async () => {
-          const pos = markerRef.current.position;
+        const dragListener = markerRef.current.addListener("drag", () => {
+          const pos = normalizeLatLng(markerRef.current.position);
           if (!pos) return;
-          await updateLocation(pos.lat(), pos.lng(), false);
+          circleRef.current?.setCenter(pos);
         });
 
-        mapClickListener = mapRef.current.addListener("click", async (e) => {
-          if (!e.latLng) return;
-          await updateLocation(e.latLng.lat(), e.latLng.lng(), false);
+        const dragEndListener = markerRef.current.addListener("dragend", async () => {
+          const pos = normalizeLatLng(markerRef.current.position);
+          if (!pos) return;
+          await updateLocation(pos.lat, pos.lng, {
+            pan: false,
+            zoom: false,
+            reverseGeocode: true,
+          });
         });
 
-        autocompleteElement = new google.maps.places.PlaceAutocompleteElement({
-          componentRestrictions: { country: ["th"] },
+        const mapClickListener = mapRef.current.addListener("click", async (e) => {
+          const pos = normalizeLatLng(e.latLng);
+          if (!pos) return;
+          await updateLocation(pos.lat, pos.lng, {
+            pan: false,
+            zoom: false,
+            reverseGeocode: true,
+          });
         });
 
-        autocompleteElement.setAttribute(
-          "placeholder",
-          "ค้นหาสถานที่, ถนน, อำเภอ, จังหวัด"
-        );
-
-        autocompleteElement.className = "block w-full";
-
-        if (autocompleteHostRef.current) {
-          autocompleteHostRef.current.innerHTML = "";
-          autocompleteHostRef.current.appendChild(autocompleteElement);
-        }
-
-        handlePlaceSelect = async (event) => {
-          try {
-            setError("");
-
-            const prediction = event.placePrediction;
-            if (!prediction) {
-              setError("ไม่พบสถานที่ที่ค้นหา");
-              return;
+        const idleListener = mapRef.current.addListener("idle", () => {
+          if (searchText.trim()) {
+            if (searchDebounceRef.current) {
+              clearTimeout(searchDebounceRef.current);
             }
-
-            const place = prediction.toPlace();
-
-            await place.fetchFields({
-              fields: [
-                "displayName",
-                "formattedAddress",
-                "location",
-                "addressComponents",
-              ],
-            });
-
-            const location = place.location;
-            if (!location) {
-              setError("ไม่พบพิกัดของสถานที่นี้");
-              return;
-            }
-
-            const lat = location.lat();
-            const lng = location.lng();
-
-            if (!markerRef.current.map) {
-              markerRef.current.map = mapRef.current;
-            }
-
-            if (!circleRef.current.getMap()) {
-              circleRef.current.setMap(mapRef.current);
-            }
-
-            markerRef.current.position = { lat, lng };
-            circleRef.current.setCenter({ lat, lng });
-
-            mapRef.current.panTo({ lat, lng });
-            mapRef.current.setZoom(15);
-
-            const { province, district } = extractProvinceAndDistrict(
-              place.addressComponents || []
-            );
-
-            onChange?.({
-              lat,
-              lng,
-              province,
-              district,
-              address:
-                place.formattedAddress ||
-                place.displayName ||
-                `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
-            });
-          } catch (err) {
-            console.error(err);
-            setError("ค้นหาสถานที่ไม่สำเร็จ");
+            searchDebounceRef.current = setTimeout(() => {
+              fetchSuggestions(searchText);
+            }, 250);
           }
-        };
+        });
 
-        autocompleteElement.addEventListener("gmp-select", handlePlaceSelect);
+        listenersRef.current.push(
+          dragListener,
+          dragEndListener,
+          mapClickListener,
+          idleListener
+        );
       } catch (err) {
         console.error(err);
         setError("โหลดแผนที่ไม่สำเร็จ");
@@ -267,21 +420,9 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
 
     return () => {
       isMounted = false;
-
-      if (mapClickListener && googleRef.current?.maps?.event) {
-        googleRef.current.maps.event.removeListener(mapClickListener);
-      }
-
-      if (markerDragListener && googleRef.current?.maps?.event) {
-        googleRef.current.maps.event.removeListener(markerDragListener);
-      }
-
-      if (autocompleteElement && handlePlaceSelect) {
-        autocompleteElement.removeEventListener("gmp-select", handlePlaceSelect);
-      }
-
-      if (autocompleteHostRef.current) {
-        autocompleteHostRef.current.innerHTML = "";
+      clearAllListeners();
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -289,39 +430,42 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
 
   useEffect(() => {
     if (!circleRef.current) return;
-    circleRef.current.setRadius(Number(radiusKm || 0) * 1000);
+    circleRef.current.setRadius(getRadiusMeters());
   }, [radiusKm]);
 
   useEffect(() => {
     if (!mapRef.current || !markerRef.current || !circleRef.current) return;
 
-    const hasValue =
-      typeof value?.lat === "number" && typeof value?.lng === "number";
-
-    if (!hasValue) {
-      if (markerRef.current.map) {
-        markerRef.current.map = null;
-      }
-
-      if (circleRef.current.getMap()) {
-        circleRef.current.setMap(null);
-      }
+    if (!hasSelectedLocation) {
+      hideMarkerAndCircle();
       return;
     }
 
     const latLng = { lat: value.lat, lng: value.lng };
+    syncVisualPosition(latLng);
+  }, [hasSelectedLocation, value?.lat, value?.lng]);
 
-    if (!markerRef.current.map) {
-      markerRef.current.map = mapRef.current;
+  useEffect(() => {
+    if (!searchText.trim()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
     }
 
-    if (!circleRef.current.getMap()) {
-      circleRef.current.setMap(mapRef.current);
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
     }
 
-    markerRef.current.position = latLng;
-    circleRef.current.setCenter(latLng);
-  }, [value?.lat, value?.lng]);
+    searchDebounceRef.current = setTimeout(() => {
+      fetchSuggestions(searchText);
+    }, 300);
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [searchText]);
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -334,8 +478,15 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        await updateLocation(pos.coords.latitude, pos.coords.longitude, true);
-        setLoadingLocation(false);
+        try {
+          await updateLocation(pos.coords.latitude, pos.coords.longitude, {
+            pan: true,
+            zoom: true,
+            reverseGeocode: true,
+          });
+        } finally {
+          setLoadingLocation(false);
+        }
       },
       () => {
         setError("ไม่สามารถดึงตำแหน่งได้");
@@ -351,13 +502,19 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
 
   const handleClear = () => {
     setError("");
+    latestGeocodeRequestRef.current += 1;
+    setLoadingAddress(false);
+    setSearchText("");
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setActiveIndex(-1);
+    sessionTokenRef.current = null;
 
-    if (markerRef.current) {
-      markerRef.current.map = null;
-    }
+    hideMarkerAndCircle();
 
-    if (circleRef.current) {
-      circleRef.current.setMap(null);
+    if (mapRef.current) {
+      mapRef.current.panTo(DEFAULT_CENTER);
+      mapRef.current.setZoom(DEFAULT_ZOOM);
     }
 
     onChange?.({
@@ -369,22 +526,118 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
     });
   };
 
+  const handleKeyDown = async (e) => {
+    if (!showSuggestions || suggestions.length === 0) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((prev) => Math.min(prev + 1, suggestions.length - 1));
+    }
+
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => Math.max(prev - 1, 0));
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const picked =
+        activeIndex >= 0 ? suggestions[activeIndex] : suggestions[0];
+      if (picked) {
+        await handleSelectSuggestion(picked);
+      }
+    }
+
+    if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
+  };
+
   return (
     <div className="flex h-full w-full flex-col">
       <div className="relative h-[520px] w-full overflow-hidden rounded-[22px] border border-gray-200 bg-gray-100">
         <div ref={mapContainerRef} className="h-full w-full" />
 
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] p-4">
-          <div className="pointer-events-auto mx-auto max-w-xl rounded-xl bg-white p-2 shadow-lg">
-            <div ref={autocompleteHostRef} />
+        <div className="absolute inset-x-0 top-0 z-[1000] p-3">
+          <div className="mx-auto max-w-lg">
+            <div className="rounded-xl border border-gray-200 bg-white shadow-md">
+              <input
+                type="text"
+                value={searchText}
+                onChange={(e) => {
+                  setSearchText(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => {
+                  if (suggestions.length > 0) setShowSuggestions(true);
+                }}
+                onBlur={() => {
+                  setTimeout(() => setShowSuggestions(false), 150);
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder="ค้นหาสถานที่, ถนน, อำเภอ, จังหวัด"
+                className="w-full rounded-xl border-0 bg-transparent px-4 py-3 text-sm text-gray-700 outline-none"
+              />
+
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="max-h-72 overflow-auto border-t border-gray-100 py-1">
+                  {suggestions.map((item, index) => {
+                    const prediction = item.placePrediction;
+                    const main =
+                      prediction?.mainText?.text ||
+                      prediction?.text?.text ||
+                      "ไม่ทราบชื่อสถานที่";
+                    const secondary =
+                      prediction?.secondaryText?.text || "";
+
+                    return (
+                      <button
+                        key={prediction?.placeId || `${main}-${index}`}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleSelectSuggestion(item)}
+                        className={`block w-full px-4 py-3 text-left transition ${
+                          index === activeIndex
+                            ? "bg-red-50"
+                            : "hover:bg-gray-50"
+                        }`}
+                      >
+                        <div className="text-sm font-medium text-gray-800">
+                          {main}
+                        </div>
+                        {secondary && (
+                          <div className="mt-1 text-xs text-gray-500">
+                            {secondary}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {showSuggestions &&
+                !loadingSuggestions &&
+                searchText.trim() &&
+                suggestions.length === 0 && (
+                  <div className="border-t border-gray-100 px-4 py-3 text-sm text-gray-500">
+                    ไม่พบสถานที่ที่ใกล้เคียง
+                  </div>
+                )}
+            </div>
           </div>
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 left-4 z-[1000] flex gap-2">
+        <div className="pointer-events-none absolute bottom-4 left-4 z-[1000] flex flex-wrap gap-2">
           <button
             type="button"
             onClick={handleUseCurrentLocation}
-            className="pointer-events-auto rounded-lg bg-white px-3 py-2 text-sm shadow"
+            className="pointer-events-auto rounded-lg bg-white px-3 py-2 text-sm shadow transition hover:bg-gray-50"
           >
             {loadingLocation ? "กำลังหา..." : "ใช้ตำแหน่งปัจจุบัน"}
           </button>
@@ -392,7 +645,7 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
           <button
             type="button"
             onClick={handleClear}
-            className="pointer-events-auto rounded-lg bg-white px-3 py-2 text-sm shadow"
+            className="pointer-events-auto rounded-lg bg-white px-3 py-2 text-sm shadow transition hover:bg-gray-50"
           >
             ล้างหมุด
           </button>
@@ -404,9 +657,9 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
           </div>
         )}
 
-        {loadingAddress && (
+        {(loadingAddress || loadingSuggestions) && (
           <div className="absolute left-1/2 top-24 z-[1000] -translate-x-1/2 rounded-lg bg-white px-4 py-2 text-sm shadow">
-            กำลังดึงข้อมูลพื้นที่...
+            กำลังค้นหา...
           </div>
         )}
 

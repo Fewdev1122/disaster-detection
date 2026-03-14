@@ -50,6 +50,8 @@ app.use("/api/air", airRoute);
 app.use("/api/admin", adminRescueRouter);
 app.use("/api/rescue", rescueRouter);
 
+
+
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err.message);
   console.error(err.stack);

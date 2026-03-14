@@ -62,18 +62,13 @@ export default function HomePage() {
               เริ่มสมัครหน่วยกู้ภัย
             </Link>
 
-            <p className="text-center text-xs text-gray-400 mt-3">
-              มีบัญชีอยู่แล้ว?{" "}
-              <Link to="/login" className="text-red-500 hover:underline">
-                เข้าสู่ระบบ
-              </Link>
-            </p>
+            
           </div>
         </div>
 
         <div className="flex justify-center gap-3 mt-4 flex-wrap">
           <TrustBadge label="ข้อมูลปลอดภัย" />
-          <TrustBadge label="แจ้งเหตุ 24/7" />
+          <TrustBadge label="แจ้งเหตุ 24 ชั่วโมง" />
           <TrustBadge label="ทีมสนับสนุน" />
         </div>
       </div>

@@ -44,22 +44,13 @@ export default function LocationDetailSection({ form, onChange }) {
 
       {form.baseLat && form.baseLng ? (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-white">
+          <div className="flex items-center gap-3">
+            <div className=" flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-white">
               <CheckIcon size={14} />
             </div>
-
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-emerald-900">
-                เลือกตำแหน่งฐานเรียบร้อยแล้ว
-              </p>
-              <p className="mt-1 text-xs leading-5 text-emerald-700">
-                {form.district || "–"}, {form.province || "–"}
-              </p>
-              <p className="mt-1 break-all text-xs leading-5 text-emerald-700">
-                lat: {form.baseLat}, lng: {form.baseLng}
-              </p>
-            </div>
+            <p className="text-sm font-semibold text-emerald-900">
+              เลือกตำแหน่งฐานเรียบร้อยแล้ว
+            </p>
           </div>
         </div>
       ) : (

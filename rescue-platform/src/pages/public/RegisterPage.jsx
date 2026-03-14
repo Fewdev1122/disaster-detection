@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Layout from "../../components/Layout";
 import MapPicker from "../../components/MapPicker";
 
@@ -9,7 +10,9 @@ import RegisterActions from "../../components/register/RegisterActions";
 import { MapIcon } from "../../components/register/icons";
 import { initialRegisterForm } from "../../constants/registerForm";
 import { registerRescueUnit } from "../../services/rescueService";
-import RegisterPendingPage from "./RegisterPendingPage";
+
+const REGISTER_DRAFT_KEY = "rescue_register_draft_v1";
+const REGISTER_PENDING_KEY = "rescue_register_pending_v1";
 
 function validateRegisterForm(form) {
   const errors = {};
@@ -39,12 +42,44 @@ function validateRegisterForm(form) {
   return errors;
 }
 
+function loadSavedDraft() {
+  try {
+    const raw = localStorage.getItem(REGISTER_DRAFT_KEY);
+    if (!raw) return initialRegisterForm;
+    return { ...initialRegisterForm, ...JSON.parse(raw) };
+  } catch (err) {
+    console.error("Failed to load register draft:", err);
+    return initialRegisterForm;
+  }
+}
+
+function clearSavedDraft() {
+  try {
+    localStorage.removeItem(REGISTER_DRAFT_KEY);
+  } catch (err) {
+    console.error("Failed to clear register draft:", err);
+  }
+}
+
+function hasFormData(form) {
+  return Object.entries(form).some(([key, value]) => {
+    const initialValue = initialRegisterForm[key];
+
+    if (typeof value === "string") {
+      return value.trim() !== String(initialValue ?? "").trim();
+    }
+
+    return value !== initialValue && value != null;
+  });
+}
+
 export default function RegisterPage() {
-  const [form, setForm] = useState(initialRegisterForm);
+  const navigate = useNavigate();
+
+  const [form, setForm] = useState(() => loadSavedDraft());
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [submittedResult, setSubmittedResult] = useState(null);
 
   const hasSelectedLocation =
     typeof form.baseLat === "number" && typeof form.baseLng === "number";
@@ -56,6 +91,25 @@ export default function RegisterPage() {
     }),
     [form.baseLat, form.baseLng]
   );
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(REGISTER_DRAFT_KEY, JSON.stringify(form));
+    } catch (err) {
+      console.error("Failed to save register draft:", err);
+    }
+  }, [form]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (!hasFormData(form) || submitting) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [form, submitting]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -95,6 +149,13 @@ export default function RegisterPage() {
     window.history.back();
   };
 
+  const handleResetDraft = () => {
+    clearSavedDraft();
+    setForm(initialRegisterForm);
+    setErrors({});
+    setSubmitError("");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -110,9 +171,33 @@ export default function RegisterPage() {
       setSubmitting(true);
 
       const result = await registerRescueUnit(form);
-      setSubmittedResult(result);
+
+      const pendingData = {
+        requestId:
+          result?.request_id ||
+          result?.id ||
+          result?.data?.id ||
+          "-",
+        status:
+          result?.status ||
+          result?.data?.status ||
+          "pending_review",
+        connectCode:
+          result?.connect_code ||
+          result?.data?.connect_code ||
+          "-",
+      };
+
+      localStorage.setItem(
+        REGISTER_PENDING_KEY,
+        JSON.stringify(pendingData)
+      );
+
+      clearSavedDraft();
       setForm(initialRegisterForm);
       setErrors({});
+
+      navigate("/register/pending");
     } catch (err) {
       console.error(err);
       setSubmitError(err.message || "เกิดข้อผิดพลาดในการสมัคร");
@@ -120,30 +205,6 @@ export default function RegisterPage() {
       setSubmitting(false);
     }
   };
-
-  if (submittedResult) {
-  return (
-    <RegisterPendingPage
-      requestId={
-        submittedResult?.request_id ||
-        submittedResult?.id ||
-        submittedResult?.data?.id ||
-        "-"
-      }
-      status={
-        submittedResult?.status ||
-        submittedResult?.data?.status ||
-        "pending_review"
-      }
-      connectCode={
-        submittedResult?.connect_code ||
-        submittedResult?.data?.connect_code ||
-        "-"
-      }
-      onRegisterAnother={() => setSubmittedResult(null)}
-    />
-  );
-}
 
   return (
     <Layout>
@@ -165,6 +226,21 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   errors={errors}
                 />
+
+                {hasFormData(form) && (
+                  <div className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <p className="text-sm text-amber-700">
+                      ระบบบันทึกแบบร่างอัตโนมัติแล้ว
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleResetDraft}
+                      className="text-sm font-medium text-amber-800 underline underline-offset-2"
+                    >
+                      ล้างข้อมูล
+                    </button>
+                  </div>
+                )}
 
                 {(errors.location || submitError) && (
                   <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3">

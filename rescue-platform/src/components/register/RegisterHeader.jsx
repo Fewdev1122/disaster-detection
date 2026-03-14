@@ -16,7 +16,7 @@ export default function RegisterHeader() {
                 Rescue Platform
               </p>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight text-gray-900 lg:text-3xl">
-                สมัครหน่วยกู้ภัย
+                สมัครสมาชิก
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-500">
                 ลงทะเบียนหน่วยกู้ภัย กำหนดตำแหน่งฐาน และตั้งรัศมีรับผิดชอบเพื่อให้ระบบเลือกส่งแจ้งเหตุได้อย่างเหมาะสม

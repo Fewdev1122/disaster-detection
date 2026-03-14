@@ -28,24 +28,35 @@ export function loadGoogleMaps() {
         return;
       }
 
-      existing.addEventListener("load", () => resolve(window.google), {
-        once: true,
-      });
-      existing.addEventListener(
-        "error",
-        () => reject(new Error("Google Maps failed to load")),
-        { once: true }
-      );
+      const handleLoad = () => {
+        if (window.google?.maps?.importLibrary) {
+          resolve(window.google);
+        } else {
+          loaderPromise = null;
+          reject(new Error("Google Maps loaded but importLibrary is missing"));
+        }
+      };
+
+      const handleError = () => {
+        loaderPromise = null;
+        reject(new Error("Google Maps failed to load"));
+      };
+
+      existing.addEventListener("load", handleLoad, { once: true });
+      existing.addEventListener("error", handleError, { once: true });
       return;
     }
 
-    const callbackName = `__googleMapsInit_${Date.now()}`;
+    const callbackName = `__googleMapsInit_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2)}`;
 
     window[callbackName] = () => {
-      if (window.google?.maps) {
+      if (window.google?.maps?.importLibrary) {
         resolve(window.google);
       } else {
-        reject(new Error("Google Maps loaded but maps object missing"));
+        loaderPromise = null;
+        reject(new Error("Google Maps loaded but importLibrary is missing"));
       }
       delete window[callbackName];
     };
@@ -61,8 +72,9 @@ export function loadGoogleMaps() {
       `&v=weekly`;
 
     script.onerror = () => {
-      reject(new Error("Failed to load Google Maps script"));
+      loaderPromise = null;
       delete window[callbackName];
+      reject(new Error("Failed to load Google Maps script"));
     };
 
     document.head.appendChild(script);
