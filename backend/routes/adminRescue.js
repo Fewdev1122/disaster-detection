@@ -1,7 +1,13 @@
 import express from "express";
 import supabase from "../config/supabase.js";
+import { clearRescueCache } from "../services/rescueService.js";
 
 const router = express.Router();
+
+function generateConnectCode() {
+  const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `RCU-${randomPart}`;
+}
 
 async function pushLineMessage(to, messages) {
   const channelAccessToken = process.env.CHANNEL_ACCESS_TOKEN;
@@ -121,15 +127,19 @@ router.get("/rescue-requests/:id", async (req, res) => {
   }
 });
 
-// อนุมัติคำขอ + แจ้ง LINE
+// อนุมัติคำขอ + สร้าง connect code + แจ้ง LINE
 router.patch("/rescue-requests/:id/approve", async (req, res) => {
   try {
     const { id } = req.params;
     const { review_note = "อนุมัติเรียบร้อย" } = req.body || {};
 
+    const connectCode = generateConnectCode();
+
     const payload = {
       status: "approved",
       review_note,
+      connect_code: connectCode,
+      connect_code_used: false,
     };
 
     const { data, error } = await supabase
@@ -142,6 +152,8 @@ router.patch("/rescue-requests/:id/approve", async (req, res) => {
     if (error) {
       throw error;
     }
+
+    clearRescueCache();
 
     let lineNotifyResult = {
       ok: false,
@@ -158,7 +170,9 @@ router.patch("/rescue-requests/:id/approve", async (req, res) => {
             `หน่วย: ${data.name || "-"}\n` +
             `สถานะ: approved\n\n` +
             `ขั้นตอนถัดไป:\n` +
-            `กรุณาดำเนินการเชื่อม LINE กลุ่มเพื่อเปิดรับแจ้งเหตุอัตโนมัติ`,
+            `1) เชิญบอทเข้ากลุ่ม LINE ของหน่วยกู้ภัย\n` +
+            `2) พิมพ์รหัสนี้ในกลุ่มเพื่อเชื่อมระบบ\n\n` +
+            `รหัสเชื่อมกลุ่ม: ${connectCode}`,
         },
       ]);
     }
@@ -198,6 +212,8 @@ router.patch("/rescue-requests/:id/reject", async (req, res) => {
     if (error) {
       throw error;
     }
+
+    clearRescueCache();
 
     let lineNotifyResult = {
       ok: false,

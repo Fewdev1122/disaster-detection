@@ -6,6 +6,11 @@ let lastFetch = 0;
 
 const CACHE_TTL = 60000; // 1 นาที
 
+export function clearRescueCache() {
+  rescueCache = [];
+  lastFetch = 0;
+}
+
 async function getRescueUnits() {
   const now = Date.now();
 
@@ -15,17 +20,18 @@ async function getRescueUnits() {
 
   const { data, error } = await supabase
     .from("rescue_units")
-    .select("id,name,line_group_id,base_lat,base_lng,coverage_km")
-    .eq("status", "active");
+    .select("id,name,line_group_id,base_lat,base_lng,coverage_km,status")
+    .eq("status", "active")
+    .not("line_group_id", "is", null);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  rescueCache = data;
+  rescueCache = data || [];
   lastFetch = now;
 
-  return data;
+  return rescueCache;
 }
 
 export async function findNearestRescue(lat, lng) {
@@ -37,14 +43,19 @@ export async function findNearestRescue(lat, lng) {
   let minDistance = Infinity;
 
   for (const unit of data) {
+    if (unit.base_lat == null || unit.base_lng == null) continue;
+    if (!unit.line_group_id) continue;
+
     const distance = haversine(
-      lat,
-      lng,
+      Number(lat),
+      Number(lng),
       Number(unit.base_lat),
       Number(unit.base_lng)
     );
 
-    if (distance <= unit.coverage_km && distance < minDistance) {
+    const coverageKm = Number(unit.coverage_km || 0);
+
+    if (distance <= coverageKm && distance < minDistance) {
       minDistance = distance;
       nearest = {
         ...unit,
@@ -54,4 +65,48 @@ export async function findNearestRescue(lat, lng) {
   }
 
   return nearest;
+}
+
+export async function bindRescueGroupByCode({ connectCode, groupId }) {
+  const normalizedCode = String(connectCode || "")
+    .trim()
+    .toUpperCase();
+
+  if (!normalizedCode) {
+    throw new Error("ไม่พบรหัสเชื่อมกลุ่ม");
+  }
+
+  if (!groupId) {
+    throw new Error("ไม่พบ groupId");
+  }
+
+  const { data: rescueUnit, error: findError } = await supabase
+    .from("rescue_units")
+    .select("*")
+    .eq("connect_code", normalizedCode)
+    .eq("connect_code_used", false)
+    .single();
+
+  if (findError || !rescueUnit) {
+    throw new Error("ไม่พบรหัสเชื่อมกลุ่ม หรือรหัสถูกใช้ไปแล้ว");
+  }
+
+  const { data, error } = await supabase
+    .from("rescue_units")
+    .update({
+      line_group_id: groupId,
+      status: "active",
+      connect_code_used: true,
+    })
+    .eq("id", rescueUnit.id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  clearRescueCache();
+
+  return data;
 }
