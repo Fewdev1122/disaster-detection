@@ -10,7 +10,11 @@ function generateConnectCode() {
 }
 
 async function pushLineMessage(to, messages) {
+  console.log("LINE PUSH TO:", to);
+  console.log("LINE MESSAGE:", messages);
   const channelAccessToken = process.env.CHANNEL_ACCESS_TOKEN;
+  console.log("LINE RESPONSE STATUS:", response.status);
+  console.log("LINE RESPONSE RAW:", rawText);
 
   if (!channelAccessToken) {
     return {
@@ -220,8 +224,11 @@ router.patch("/rescue-requests/:id/reject", async (req, res) => {
       skipped: true,
       reason: "line_user_id missing",
     };
+    console.log("APPROVED UNIT:", data);
+    console.log("LINE USER ID:", data?.line_user_id);
 
     if (data?.line_user_id) {
+      console.log("TRY PUSH LINE MESSAGE");
       lineNotifyResult = await pushLineMessage(data.line_user_id, [
         {
           type: "text",
@@ -232,6 +239,7 @@ router.patch("/rescue-requests/:id/reject", async (req, res) => {
             `หมายเหตุ: ${review_note}`,
         },
       ]);
+      console.log("LINE PUSH RESULT:", lineNotifyResult);
     }
 
     return res.json({
