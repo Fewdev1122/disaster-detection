@@ -1,6 +1,6 @@
-import Layout from "../components/Layout";
-import PageHeader from "../components/PageHeader";
-import StatusCard from "../components/StatusCard";
+import Layout from "../../components/Layout";
+import PageHeader from "../../components/PageHeader";
+import StatusCard from "../../components/StatusCard";
 
 export default function DashboardPage() {
   return (

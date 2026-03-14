@@ -1,5 +1,5 @@
-import Layout from "../components/Layout";
-import PageHeader from "../components/PageHeader";
+import Layout from "../../components/Layout";
+import PageHeader from "../../components/PageHeader";
 
 export default function ConnectLinePage() {
   const verificationCode = "RESCUE-48291";

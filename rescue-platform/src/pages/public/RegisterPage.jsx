@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
-import Layout from "../components/Layout";
-import MapPicker from "../components/MapPicker";
+import Layout from "../../components/Layout";
+import MapPicker from "../../components/MapPicker";
 
-import RegisterHeader from "../components/register/RegisterHeader";
-import RescueInfoSection from "../components/register/RescueInfoSection";
-import LocationDetailSection from "../components/register/LocationDetailSection";
-import RegisterActions from "../components/register/RegisterActions";
-import { MapIcon } from "../components/register/icons";
-import { initialRegisterForm } from "../constants/registerForm";
-import { registerRescueUnit } from "../services/rescueService";
+import RegisterHeader from "../../components/register/RegisterHeader";
+import RescueInfoSection from "../../components/register/RescueInfoSection";
+import LocationDetailSection from "../../components/register/LocationDetailSection";
+import RegisterActions from "../../components/register/RegisterActions";
+import { MapIcon } from "../../components/register/icons";
+import { initialRegisterForm } from "../../constants/registerForm";
+import { registerRescueUnit } from "../../services/rescueService";
 import RegisterPendingPage from "./RegisterPendingPage";
 
 function validateRegisterForm(form) {

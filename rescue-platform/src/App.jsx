@@ -1,8 +1,8 @@
 import { Routes, Route } from "react-router-dom";
-import HomePage from "./pages/HomePage";
-import RegisterPage from "./pages/RegisterPage";
-import ConnectLinePage from "./pages/ConnectLinePage";
-import DashboardPage from "./pages/DashboardPage";
+import HomePage from "./pages/rescue/HomePage";
+import RegisterPage from "./pages/public/RegisterPage";
+import ConnectLinePage from "./pages/rescue/ConnectLinePage";
+import DashboardPage from "./pages/rescue/DashboardPage";
 
 export default function App() {
   return (
@@ -11,6 +11,10 @@ export default function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/connect-line" element={<ConnectLinePage />} />
       <Route path="/dashboard" element={<DashboardPage />} />
+      <Route
+        path="/admin/rescue-requests"
+        element={<AdminRescueRequestsPage />}
+      />
     </Routes>
   );
 }
