@@ -171,13 +171,11 @@ function DataTable({ columns, rows, renderRow, emptyText = "No data" }) {
 
 function PendingApplicationsTable({ requests }) {
   const columns = [
-    { key: "unitName", label: "Unit name" },
-    { key: "province", label: "Province" },
-    { key: "district", label: "District" },
-    { key: "coordinator", label: "Coordinator" },
-    { key: "submittedAt", label: "Submitted at" },
-    { key: "line", label: "LINE" },
-    { key: "actions", label: "Actions" },
+    { key: "type", label: "Type" },
+    { key: "confidence", label: "Confidence" },
+    { key: "unit", label: "Unit" },
+    { key: "createdAt", label: "Reported At" },
+    { key: "image", label: "Image" },
   ];
 
   return (
@@ -195,40 +193,40 @@ function PendingApplicationsTable({ requests }) {
         rows={requests}
         renderRow={(item) => (
           <tr key={item.id} className="hover:bg-slate-50">
-            <td className="px-4 py-3 text-sm font-medium text-slate-900">
-              {item.name || "-"}
-            </td>
-            <td className="px-4 py-3 text-sm text-slate-700">{item.province || "-"}</td>
-            <td className="px-4 py-3 text-sm text-slate-700">{item.district || "-"}</td>
-            <td className="px-4 py-3 text-sm text-slate-700">
-              {item.coordinator_name || "-"}
-            </td>
-            <td className="px-4 py-3 text-sm text-slate-700">
-              {item.created_at
-                ? new Date(item.created_at).toLocaleString("th-TH")
-                : "-"}
-            </td>
+
             <td className="px-4 py-3">
-              <span
-                className={
-                  item.line_user_id
-                    ? "inline-flex rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700"
-                    : "inline-flex rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700"
-                }
-              >
-                {item.line_user_id ? "Connected" : "Not linked"}
+              <span className="font-medium text-red-600">
+                {item.disaster_type}
               </span>
             </td>
-            <td className="px-4 py-3">
-              <div className="flex flex-wrap gap-2">
-                <button className="border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
-                  View
-                </button>
-                <button className="border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100">
-                  Approve
-                </button>
-              </div>
+
+            <td className="px-4 py-3 text-sm">
+              {(item.confidence * 100).toFixed(0)}%
             </td>
+
+            <td className="px-4 py-3 text-sm">
+              {item.rescue_units?.name || "-"}
+            </td>
+
+            <td className="px-4 py-3 text-sm">
+              {new Date(item.created_at).toLocaleTimeString("th-TH", {
+                hour: "2-digit",
+                minute: "2-digit"
+              })}
+            </td>
+
+            <td className="px-4 py-3">
+              {item.image_url ? (
+                <a
+                  href={item.image_url}
+                  target="_blank"
+                  className="text-blue-600 hover:underline text-sm"
+                >
+                  View
+                </a>
+              ) : "-"}
+            </td>
+
           </tr>
         )}
       />
@@ -259,8 +257,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [error, setError] = useState("");
-  
- 
+
+
   const loadDashboardData = async () => {
     try {
       setError("");

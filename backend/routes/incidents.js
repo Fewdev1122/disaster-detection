@@ -9,19 +9,24 @@ router.get("/recent", async (req, res) => {
 
     const { data, error } = await supabase
       .from("incident_reports")
-      .select("*")
+      .select(`
+        id,
+        disaster_type,
+        confidence,
+        image_url,
+        created_at,
+        rescue_units (
+          name
+        )
+      `)
       .order("created_at", { ascending: false })
       .limit(limit);
 
     if (error) throw error;
 
-    return res.json({ data });
+    res.json({ data });
   } catch (err) {
-    console.error("GET /incidents/recent error:", err);
-    return res.status(500).json({
-      message: err.message || "โหลดเหตุล่าสุดไม่สำเร็จ",
-    });
+    console.error(err);
+    res.status(500).json({ message: err.message });
   }
 });
-
-export default router;
