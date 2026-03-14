@@ -3,8 +3,64 @@ import supabase from "../config/supabase.js";
 
 const router = express.Router();
 
+async function pushLineMessage(to, messages) {
+  const channelAccessToken = process.env.CHANNEL_ACCESS_TOKEN;
+
+  if (!channelAccessToken) {
+    return {
+      ok: false,
+      skipped: true,
+      reason: "CHANNEL_ACCESS_TOKEN missing",
+    };
+  }
+
+  if (!to) {
+    return {
+      ok: false,
+      skipped: true,
+      reason: "line_user_id missing",
+    };
+  }
+
+  const response = await fetch("https://api.line.me/v2/bot/message/push", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${channelAccessToken}`,
+    },
+    body: JSON.stringify({
+      to,
+      messages,
+    }),
+  });
+
+  const rawText = await response.text();
+
+  let data = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    data = { raw: rawText };
+  }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      skipped: false,
+      status: response.status,
+      data,
+    };
+  }
+
+  return {
+    ok: true,
+    skipped: false,
+    status: response.status,
+    data,
+  };
+}
+
 // ดึงรายการคำขอสมัครหน่วยกู้ภัย
-// ใช้ได้ทั้งทั้งหมด หรือ filter status เช่น ?status=pending_review
 router.get("/rescue-requests", async (req, res) => {
   try {
     const { status } = req.query;
@@ -65,7 +121,7 @@ router.get("/rescue-requests/:id", async (req, res) => {
   }
 });
 
-// อนุมัติคำขอ
+// อนุมัติคำขอ + แจ้ง LINE
 router.patch("/rescue-requests/:id/approve", async (req, res) => {
   try {
     const { id } = req.params;
@@ -87,9 +143,30 @@ router.patch("/rescue-requests/:id/approve", async (req, res) => {
       throw error;
     }
 
+    let lineNotifyResult = {
+      ok: false,
+      skipped: true,
+      reason: "line_user_id missing",
+    };
+
+    if (data?.line_user_id) {
+      lineNotifyResult = await pushLineMessage(data.line_user_id, [
+        {
+          type: "text",
+          text:
+            `✅ คำขอสมัครหน่วยกู้ภัยของคุณได้รับการอนุมัติแล้ว\n\n` +
+            `หน่วย: ${data.name || "-"}\n` +
+            `สถานะ: approved\n\n` +
+            `ขั้นตอนถัดไป:\n` +
+            `กรุณาดำเนินการเชื่อม LINE กลุ่มเพื่อเปิดรับแจ้งเหตุอัตโนมัติ`,
+        },
+      ]);
+    }
+
     return res.json({
       message: "อนุมัติคำขอสำเร็จ",
       data,
+      line_notify: lineNotifyResult,
     });
   } catch (err) {
     console.error("APPROVE RESCUE REQUEST ERROR:", err);
@@ -100,7 +177,7 @@ router.patch("/rescue-requests/:id/approve", async (req, res) => {
   }
 });
 
-// ปฏิเสธคำขอ
+// ปฏิเสธคำขอ + แจ้ง LINE
 router.patch("/rescue-requests/:id/reject", async (req, res) => {
   try {
     const { id } = req.params;
@@ -122,9 +199,29 @@ router.patch("/rescue-requests/:id/reject", async (req, res) => {
       throw error;
     }
 
+    let lineNotifyResult = {
+      ok: false,
+      skipped: true,
+      reason: "line_user_id missing",
+    };
+
+    if (data?.line_user_id) {
+      lineNotifyResult = await pushLineMessage(data.line_user_id, [
+        {
+          type: "text",
+          text:
+            `❌ คำขอสมัครหน่วยกู้ภัยของคุณยังไม่ผ่านการตรวจสอบ\n\n` +
+            `หน่วย: ${data.name || "-"}\n` +
+            `สถานะ: rejected\n` +
+            `หมายเหตุ: ${review_note}`,
+        },
+      ]);
+    }
+
     return res.json({
       message: "ปฏิเสธคำขอสำเร็จ",
       data,
+      line_notify: lineNotifyResult,
     });
   } catch (err) {
     console.error("REJECT RESCUE REQUEST ERROR:", err);

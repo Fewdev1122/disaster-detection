@@ -4,6 +4,7 @@ export const initialRegisterForm = {
   district: "",
   phone: "",
   coordinatorName: "",
+  lineUserId: "",
   baseLat: null,
   baseLng: null,
   address: "",

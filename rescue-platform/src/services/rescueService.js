@@ -10,12 +10,14 @@ export async function registerRescueUnit(form) {
     province: form.province.trim(),
     district: form.district.trim(),
     address: form.address.trim(),
+    line_user_id: form.lineUserId.trim(),
     lat: form.baseLat,
     lng: form.baseLng,
     coverage_radius_km: Number(form.coverageRadiusKm || 10),
   };
 
   const url = `${API_BASE_URL}/api/rescue/register`;
+
   console.log("REGISTER URL:", url);
   console.log("REGISTER PAYLOAD:", payload);
 
@@ -28,23 +30,22 @@ export async function registerRescueUnit(form) {
   });
 
   const rawText = await response.text();
+
   console.log("REGISTER STATUS:", response.status);
-  console.log("RAW RESPONSE:", rawText);
+  console.log("REGISTER RAW RESPONSE:", rawText);
 
   let data = null;
   try {
     data = rawText ? JSON.parse(rawText) : null;
   } catch {
-    throw new Error(
-      `Server ไม่ได้ส่ง JSON กลับมา (${response.status})`
-    );
+    throw new Error(`Server ไม่ได้ส่ง JSON กลับมา (${response.status})`);
   }
 
   if (!response.ok) {
     throw new Error(
       data?.message ||
-        data?.error ||
         data?.detail ||
+        data?.error ||
         `สมัครไม่สำเร็จ (${response.status})`
     );
   }

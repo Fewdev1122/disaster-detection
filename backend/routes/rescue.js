@@ -12,14 +12,15 @@ router.post("/register", async (req, res) => {
       province,
       district,
       address,
+      line_user_id,
       lat,
       lng,
-      coverage_radius_km
+      coverage_radius_km,
     } = req.body;
 
-    if (!name || !lat || !lng) {
+    if (!name || lat == null || lng == null) {
       return res.status(400).json({
-        message: "ข้อมูลไม่ครบ"
+        message: "ข้อมูลไม่ครบ",
       });
     }
 
@@ -28,33 +29,36 @@ router.post("/register", async (req, res) => {
       .insert([
         {
           name,
-          coordinator_name,
-          phone,
-          province,
-          district,
-          address,
+          coordinator_name: coordinator_name || null,
+          phone: phone || null,
+          province: province || null,
+          district: district || null,
+          address: address || null,
+          line_user_id: line_user_id || null,
           base_lat: lat,
           base_lng: lng,
           coverage_km: coverage_radius_km || 10,
           status: "pending_review",
-          line_group_id: ""
-        }
+          line_group_id: null,
+        },
       ])
-      .select();
+      .select()
+      .single();
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "สมัครสำเร็จ",
       status: "pending_review",
-      data: data[0]
+      data,
     });
-
   } catch (err) {
-    console.error("REGISTER ERROR:", err);
-    res.status(500).json({
+    console.error("REGISTER RESCUE ERROR:", err);
+    return res.status(500).json({
       message: "สมัครไม่สำเร็จ",
-      detail: err.message
+      detail: err.message,
     });
   }
 });

@@ -3,7 +3,7 @@ import HomePage from "./pages/rescue/HomePage";
 import RegisterPage from "./pages/public/RegisterPage";
 import ConnectLinePage from "./pages/rescue/ConnectLinePage";
 import DashboardPage from "./pages/rescue/DashboardPage";
-
+import AdminRescueRequestsPage from "./pages/admin/AdminRescueRequestsPage";
 export default function App() {
   return (
     <Routes>

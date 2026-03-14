@@ -43,6 +43,21 @@ export default function RescueInfoSection({ form, onChange }) {
           />
         </Field>
 
+        <Field label="Line User ID">
+          <input
+            name="lineUserId"
+            value={form.lineUserId}
+            onChange={onChange}
+            placeholder="เช่น Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            className={inputClass}
+          />
+          <p className="mt-2 text-xs text-gray-400">
+            ใช้สำหรับส่งแจ้งสถานะอนุมัติหรือปฏิเสธกลับไปยัง LINE ของผู้สมัคร
+          </p>
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Field label="รัศมีรับผิดชอบ">
           <div className="flex items-center gap-2">
             <input
