@@ -5,7 +5,7 @@ import {
   getApprovedRescueUnits,
   getRescueRequests,
 } from "../../services/adminRescueService";
-
+import { getRecentIncidents } from "../../services/incidentService";
 function cx(...classes) {
   return classes.filter(Boolean).join(" ");
 }

@@ -9,7 +9,7 @@ import webhookRouter from "./routes/webhook.js";
 import reportRouter from "./routes/report.js";
 import airRoute from "./routes/air.js";
 import adminRescueRouter from "./routes/adminRescue.js";
-
+import incidentsRouter from "./routes/incidents.js";
 dotenv.config({ path: path.resolve(process.cwd(), "../.env") });
 
 console.log(
@@ -49,7 +49,7 @@ app.use("/api/hotspot", hotspotRouter);
 app.use("/api/air", airRoute);
 app.use("/api/admin", adminRescueRouter);
 app.use("/api/rescue", rescueRouter);
-
+app.use("/api/incidents", incidentsRouter);
 
 
 app.use((err, req, res, next) => {

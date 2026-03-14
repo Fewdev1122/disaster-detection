@@ -1,3 +1,8 @@
+import express from "express";
+import supabase from "../config/supabase.js";
+
+const router = express.Router();
+
 router.get("/recent", async (req, res) => {
   try {
     const limit = Number(req.query.limit || 10);
@@ -10,8 +15,13 @@ router.get("/recent", async (req, res) => {
 
     if (error) throw error;
 
-    res.json({ data });
+    return res.json({ data });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("GET /incidents/recent error:", err);
+    return res.status(500).json({
+      message: err.message || "โหลดเหตุล่าสุดไม่สำเร็จ",
+    });
   }
 });
+
+export default router;
