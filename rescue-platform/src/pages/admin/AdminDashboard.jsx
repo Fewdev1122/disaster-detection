@@ -192,16 +192,20 @@ function PendingApplicationsTable({ requests }) {
         columns={columns}
         rows={requests}
         renderRow={(item) => (
+          
           <tr key={item.id} className="hover:bg-slate-50">
 
             <td className="px-4 py-3">
               <span className="font-medium text-red-600">
                 {item.disaster_type}
+                
               </span>
             </td>
 
             <td className="px-4 py-3 text-sm">
-              {(item.confidence * 100).toFixed(0)}%
+              {item.confidence
+  ? `${(Number(item.confidence) * 100).toFixed(0)}%`
+  : "-"}
             </td>
 
             <td className="px-4 py-3 text-sm">

@@ -10,13 +10,15 @@ router.get("/recent", async (req, res) => {
     const { data, error } = await supabase
       .from("incident_reports")
       .select(`
-        id,
-        disaster_type,
-        confidence,
-        image_url,
-        created_at,
-        rescue_unit_id
-      `)
+    id,
+    disaster_type,
+    confidence,
+    image_url,
+    created_at,
+    rescue_units (
+      name
+    )
+  `)
       .order("created_at", { ascending: false })
       .limit(limit);
 
