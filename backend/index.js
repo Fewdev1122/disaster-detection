@@ -3,7 +3,7 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import path from "path";
-
+import rescueRouter from "./routes/rescue.js";
 import hotspotRouter from "./routes/hotspot.js";
 import webhookRouter from "./routes/webhook.js";
 import reportRouter from "./routes/report.js";
@@ -46,6 +46,8 @@ app.get("/", (req, res) => {
 app.use("/report", reportRouter);
 app.use("/api/hotspot", hotspotRouter);
 app.use("/api/air", airRoute);
+
+app.use("/api/rescue", rescueRouter);
 
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err.message);
