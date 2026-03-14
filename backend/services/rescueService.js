@@ -121,23 +121,24 @@ export async function bindRescueUserByCode({ connectCode, lineUserId }) {
   if (!lineUserId) {
     throw new Error("ไม่พบ lineUserId");
   }
+  if (rescueUnit.line_group_id) {
+  throw new Error("หน่วยนี้เชื่อมกลุ่มไปแล้ว");
+}
 
   const { data: rescueUnit, error: findError } = await supabase
     .from("rescue_units")
     .select("*")
     .eq("connect_code", normalizedCode)
-    .eq("connect_code_used", false)
     .single();
 
   if (findError || !rescueUnit) {
-    throw new Error("ไม่พบรหัสผูก LINE หรือรหัสถูกใช้ไปแล้ว");
+    throw new Error("ไม่พบรหัสผูก LINE");
   }
 
   const { data, error } = await supabase
     .from("rescue_units")
     .update({
-      line_user_id: lineUserId,
-      connect_code_used: true,
+      line_user_id: lineUserId
     })
     .eq("id", rescueUnit.id)
     .select()
