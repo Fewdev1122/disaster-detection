@@ -68,9 +68,7 @@ export async function findNearestRescue(lat, lng) {
 }
 
 export async function bindRescueGroupByCode({ connectCode, groupId }) {
-  const normalizedCode = String(connectCode || "")
-    .trim()
-    .toUpperCase();
+  const normalizedCode = String(connectCode || "").trim().toUpperCase();
 
   if (!normalizedCode) {
     throw new Error("ไม่พบรหัสเชื่อมกลุ่ม");
@@ -89,6 +87,10 @@ export async function bindRescueGroupByCode({ connectCode, groupId }) {
 
   if (findError || !rescueUnit) {
     throw new Error("ไม่พบรหัสเชื่อมกลุ่ม หรือรหัสถูกใช้ไปแล้ว");
+  }
+
+  if (rescueUnit.line_group_id) {
+    throw new Error("หน่วยนี้เชื่อมกลุ่มไปแล้ว");
   }
 
   const { data, error } = await supabase
@@ -121,9 +123,6 @@ export async function bindRescueUserByCode({ connectCode, lineUserId }) {
   if (!lineUserId) {
     throw new Error("ไม่พบ lineUserId");
   }
-  if (rescueUnit.line_group_id) {
-  throw new Error("หน่วยนี้เชื่อมกลุ่มไปแล้ว");
-}
 
   const { data: rescueUnit, error: findError } = await supabase
     .from("rescue_units")
@@ -135,10 +134,14 @@ export async function bindRescueUserByCode({ connectCode, lineUserId }) {
     throw new Error("ไม่พบรหัสผูก LINE");
   }
 
+  if (rescueUnit.line_group_id) {
+    throw new Error("รหัสนี้ถูกใช้ไปแล้ว");
+  }
+
   const { data, error } = await supabase
     .from("rescue_units")
     .update({
-      line_user_id: lineUserId
+      line_user_id: lineUserId,
     })
     .eq("id", rescueUnit.id)
     .select()

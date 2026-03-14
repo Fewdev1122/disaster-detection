@@ -74,8 +74,14 @@ router.post("/", lineMiddleware, async (req, res) => {
           const incomingText = event.message.text || "";
           const connectCode = extractConnectCode(incomingText);
 
+          console.log("TEXT MESSAGE:", incomingText);
+          console.log("EXTRACTED CONNECT CODE:", connectCode);
+          console.log("SOURCE TYPE:", event.source?.type);
+          console.log("SOURCE USER ID:", event.source?.userId);
+
           // 5.1 ผูก LINE user ในแชตส่วนตัว
           if (connectCode && event.source?.type === "user") {
+            console.log("ENTER USER BIND FLOW");
             try {
               const lineUserId = event.source?.userId;
 
