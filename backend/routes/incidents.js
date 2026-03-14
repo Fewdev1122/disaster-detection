@@ -15,18 +15,20 @@ router.get("/recent", async (req, res) => {
         confidence,
         image_url,
         created_at,
-        rescue_units (
-          name
-        )
+        rescue_unit_id
       `)
       .order("created_at", { ascending: false })
       .limit(limit);
 
     if (error) throw error;
 
-    res.json({ data });
+    return res.json({ data });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: err.message });
+    console.error("GET /api/incidents/recent error:", err);
+    return res.status(500).json({
+      message: err.message || "โหลดเหตุล่าสุดไม่สำเร็จ",
+    });
   }
 });
+
+export default router;

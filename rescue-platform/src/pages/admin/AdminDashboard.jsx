@@ -180,8 +180,8 @@ function PendingApplicationsTable({ requests }) {
 
   return (
     <Panel
-      title="Pending applications"
-      subtitle="รายการหน่วยกู้ภัยที่รออนุมัติ"
+      title="Recent Incidents"
+      subtitle="เหตุล่าสุดที่ระบบตรวจพบ"
       right={
         <button className="border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
           Export
