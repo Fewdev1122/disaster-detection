@@ -6,9 +6,8 @@ const router = express.Router();
 router.get("/recent", async (req, res) => {
   try {
     const parsedLimit = Number(req.query.limit);
-    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
-      ? parsedLimit
-      : 5;
+    const limit =
+      Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 5;
 
     const { data, error } = await supabase
       .from("incident_reports")
@@ -26,6 +25,7 @@ router.get("/recent", async (req, res) => {
         rescue_units (
           id,
           name,
+          province,
           base_lat,
           base_lng
         )

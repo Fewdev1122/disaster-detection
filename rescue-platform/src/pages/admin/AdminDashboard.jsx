@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/admin/AdminLayout";
 import RescueUnitsMapPanel from "../../components/admin/RescueUnitsMapPanel";
 import {
@@ -104,9 +105,9 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) *
+    Math.sin(dLng / 2);
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
@@ -190,6 +191,8 @@ function ActionRequiredPanel({
   unitsWithoutLine,
   inactiveUnits,
 }) {
+  const navigate = useNavigate();
+
   const actionRequired = [
     {
       id: 1,
@@ -198,6 +201,7 @@ function ActionRequiredPanel({
       description: "มีคำขอสมัครใหม่ที่ยังไม่ได้ตรวจสอบ",
       action: "Review requests",
       tone: "amber",
+      to: "/admin/requests",
     },
     {
       id: 2,
@@ -206,6 +210,7 @@ function ActionRequiredPanel({
       description: "หน่วยที่อนุมัติแล้วแต่ยังเชื่อม LINE ไม่สมบูรณ์",
       action: "Check units",
       tone: "rose",
+      to: "/admin/units",
     },
     {
       id: 3,
@@ -214,6 +219,7 @@ function ActionRequiredPanel({
       description: "หน่วยที่ยังไม่พร้อมใช้งานหรือปิดอยู่",
       action: "View status",
       tone: "slate",
+      to: "/admin/units",
     },
   ];
 
@@ -222,7 +228,11 @@ function ActionRequiredPanel({
       title="Action required"
       subtitle="สิ่งที่ควรจัดการก่อน"
       right={
-        <button className="text-xs font-medium text-blue-700 hover:text-blue-800">
+        <button
+          type="button"
+          onClick={() => navigate("/admin/requests")}
+          className="text-xs font-medium text-blue-700 hover:text-blue-800"
+        >
           View all
         </button>
       }
@@ -248,7 +258,11 @@ function ActionRequiredPanel({
                 <p className="mt-1 text-xs text-slate-500">{item.description}</p>
               </div>
 
-              <button className="shrink-0 rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+              <button
+                type="button"
+                onClick={() => navigate(item.to)}
+                className="shrink-0 rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
                 {item.action}
               </button>
             </div>
@@ -307,15 +321,7 @@ function RecentIncidentsTable({ incidents }) {
   ];
 
   return (
-    <Panel
-      title="Recent Incidents"
-      subtitle="เหตุล่าสุดที่ระบบตรวจพบ"
-      right={
-        <button className="border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
-          Export
-        </button>
-      }
-    >
+    <Panel title="Recent Incidents" subtitle="เหตุล่าสุดที่ระบบตรวจพบ">
       <DataTable
         columns={columns}
         rows={incidents}
@@ -400,23 +406,6 @@ function RecentIncidentsTable({ incidents }) {
   );
 }
 
-function MiniStatsPanel({ title, subtitle, items, formatter = (v) => v }) {
-  return (
-    <Panel title={title} subtitle={subtitle}>
-      <div className="divide-y divide-slate-200">
-        {items.map((item) => (
-          <div key={item.label} className="flex items-center justify-between px-4 py-3">
-            <span className="text-sm text-slate-700">{item.label}</span>
-            <span className="text-sm font-semibold text-slate-900">
-              {formatter(item.value)}
-            </span>
-          </div>
-        ))}
-      </div>
-    </Panel>
-  );
-}
-
 export default function AdminDashboard() {
   const [units, setUnits] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -425,6 +414,7 @@ export default function AdminDashboard() {
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [loadingIncidents, setLoadingIncidents] = useState(true);
   const [error, setError] = useState("");
+  const [selectedProvince, setSelectedProvince] = useState("");
 
   const loadDashboardData = async () => {
     try {
@@ -460,21 +450,44 @@ export default function AdminDashboard() {
     loadDashboardData();
   }, []);
 
+  const provinces = useMemo(() => {
+    return [...new Set(units.map((u) => u.province).filter(Boolean))].sort();
+  }, [units]);
+
+  const filteredUnits = useMemo(() => {
+    if (!selectedProvince) return units;
+    return units.filter((u) => u.province === selectedProvince);
+  }, [units, selectedProvince]);
+
+  const filteredPendingRequests = useMemo(() => {
+    if (!selectedProvince) return pendingRequests;
+    return pendingRequests.filter((item) => item.province === selectedProvince);
+  }, [pendingRequests, selectedProvince]);
+
+  const filteredRecentIncidents = useMemo(() => {
+    if (!selectedProvince) return recentIncidents;
+
+    return recentIncidents.filter((item) => {
+      const unitProvince = item?.rescue_units?.province;
+      return unitProvince === selectedProvince;
+    });
+  }, [recentIncidents, selectedProvince]);
+
   const summaryItems = useMemo(() => {
-    const activeUnits = units.filter((u) => u.status === "active").length;
-    const pendingUnits = units.filter((u) => u.status === "pending").length;
-    const unitsWithoutLine = units.filter((u) => !u.line_user_id).length;
+    const activeUnits = filteredUnits.filter((u) => u.status === "active").length;
+    const pendingUnits = filteredUnits.filter((u) => u.status === "pending").length;
+    const unitsWithoutLine = filteredUnits.filter((u) => !u.line_user_id).length;
 
     return [
       {
         label: "Pending approvals",
-        value: pendingRequests.length,
+        value: filteredPendingRequests.length,
         tone: "amber",
         note: "Needs review",
       },
       {
         label: "Approved units",
-        value: units.length,
+        value: filteredUnits.length,
         tone: "emerald",
         note: "Registered",
       },
@@ -491,63 +504,19 @@ export default function AdminDashboard() {
         note: pendingUnits > 0 ? `${pendingUnits} pending` : "Check setup",
       },
     ];
-  }, [units, pendingRequests]);
+  }, [filteredUnits, filteredPendingRequests]);
 
-  const unitStatusStats = useMemo(() => {
-    return [
-      { label: "Active", value: units.filter((u) => u.status === "active").length },
-      { label: "Pending setup", value: units.filter((u) => u.status === "pending").length },
-      { label: "Inactive", value: units.filter((u) => u.status === "inactive").length },
-    ];
-  }, [units]);
-
-  const coverageStats = useMemo(() => {
-    const provinceSet = new Set(units.map((u) => u.province).filter(Boolean));
-    const districtSet = new Set(
-      units.map((u) => `${u.province}-${u.district}`).filter(Boolean)
-    );
-    const lineConnected = units.filter((u) => u.line_user_id).length;
-    const avgCoverage =
-      units.length > 0
-        ? (
-            units.reduce((sum, u) => sum + Number(u.coverage_km || 0), 0) / units.length
-          ).toFixed(1)
-        : "0.0";
-
-    return [
-      { label: "Covered provinces", value: provinceSet.size },
-      { label: "Covered districts", value: districtSet.size },
-      { label: "LINE connected units", value: lineConnected },
-      { label: "Average coverage radius", value: `${avgCoverage} กม.` },
-    ];
-  }, [units]);
-
-  const networkReadinessStats = useMemo(() => {
-    const total = units.length || 1;
-    const active = units.filter((u) => u.status === "active").length;
-    const lineConnected = units.filter((u) => u.line_user_id).length;
-    const withCoordinates = units.filter(
-      (u) => u.base_lat != null && u.base_lng != null
-    ).length;
-
-    return [
-      {
-        label: "Operational readiness",
-        value: `${Math.round((active / total) * 100)}%`,
-      },
-      {
-        label: "LINE setup completion",
-        value: `${Math.round((lineConnected / total) * 100)}%`,
-      },
-      {
-        label: "Map data completeness",
-        value: `${Math.round((withCoordinates / total) * 100)}%`,
-      },
-    ];
-  }, [units]);
+  const refreshing = loading || loadingRequests || loadingIncidents;
 
   return (
-    <AdminLayout>
+    <AdminLayout
+      title="แดชบอร์ดผู้ดูแลระบบ"
+      onRefresh={loadDashboardData}
+      refreshing={refreshing}
+      provinces={provinces}
+      selectedProvince={selectedProvince}
+      onProvinceChange={setSelectedProvince}
+    >
       <div className="min-h-screen bg-slate-100">
         <div className="px-4 py-4 sm:px-6 lg:px-8">
           {error ? (
@@ -567,15 +536,18 @@ export default function AdminDashboard() {
                   กำลังโหลดข้อมูลแผนที่...
                 </div>
               ) : (
-                <RescueUnitsMapPanel units={units} />
+                <RescueUnitsMapPanel
+                  units={filteredUnits}
+                  incidents={filteredRecentIncidents}
+                />
               )}
             </div>
 
             <div className="xl:col-span-4">
               <ActionRequiredPanel
-                pendingCount={pendingRequests.length}
-                unitsWithoutLine={units.filter((u) => !u.line_user_id).length}
-                inactiveUnits={units.filter((u) => u.status === "inactive").length}
+                pendingCount={filteredPendingRequests.length}
+                unitsWithoutLine={filteredUnits.filter((u) => !u.line_user_id).length}
+                inactiveUnits={filteredUnits.filter((u) => u.status === "inactive").length}
               />
             </div>
           </div>
@@ -586,36 +558,8 @@ export default function AdminDashboard() {
                 กำลังโหลดเหตุล่าสุด...
               </div>
             ) : (
-              <RecentIncidentsTable incidents={recentIncidents} />
+              <RecentIncidentsTable incidents={filteredRecentIncidents} />
             )}
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <MiniStatsPanel
-              title="Unit status"
-              subtitle="สถานะโดยรวมของหน่วยกู้ภัย"
-              items={unitStatusStats}
-            />
-            <MiniStatsPanel
-              title="Coverage summary"
-              subtitle="ภาพรวมพื้นที่ที่ระบบครอบคลุม"
-              items={coverageStats}
-            />
-            <MiniStatsPanel
-              title="Network readiness"
-              subtitle="ความพร้อมใช้งานของเครือข่าย"
-              items={networkReadinessStats}
-            />
-          </div>
-
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={loadDashboardData}
-              className="border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Refresh dashboard
-            </button>
           </div>
         </div>
       </div>

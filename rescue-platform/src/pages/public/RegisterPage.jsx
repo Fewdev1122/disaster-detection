@@ -73,6 +73,41 @@ function hasFormData(form) {
   });
 }
 
+function InfoStrip({ hasSelectedLocation, coverageRadiusKm }) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="border border-slate-200 bg-white px-4 py-3">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          สถานะตำแหน่ง
+        </p>
+        <p className="mt-2 text-sm font-semibold text-slate-900">
+          {hasSelectedLocation ? "เลือกตำแหน่งแล้ว" : "ยังไม่ได้เลือก"}
+        </p>
+      </div>
+
+      <div className="border border-slate-200 bg-white px-4 py-3">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          รัศมีครอบคลุม
+        </p>
+        <p className="mt-2 text-sm font-semibold text-slate-900">
+          {coverageRadiusKm && Number(coverageRadiusKm) > 0
+            ? `${Number(coverageRadiusKm)} กม.`
+            : "-"}
+        </p>
+      </div>
+
+      <div className="border border-slate-200 bg-white px-4 py-3">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          โหมดแบบฟอร์ม
+        </p>
+        <p className="mt-2 text-sm font-semibold text-slate-900">
+          สมัครหน่วยกู้ภัย
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function RegisterPage() {
   const navigate = useNavigate();
 
@@ -173,25 +208,13 @@ export default function RegisterPage() {
       const result = await registerRescueUnit(form);
 
       const pendingData = {
-        requestId:
-          result?.request_id ||
-          result?.id ||
-          result?.data?.id ||
-          "-",
-        status:
-          result?.status ||
-          result?.data?.status ||
-          "pending_review",
+        requestId: result?.request_id || result?.id || result?.data?.id || "-",
+        status: result?.status || result?.data?.status || "pending_review",
         connectCode:
-          result?.connect_code ||
-          result?.data?.connect_code ||
-          "-",
+          result?.connect_code || result?.data?.connect_code || "-",
       };
 
-      localStorage.setItem(
-        REGISTER_PENDING_KEY,
-        JSON.stringify(pendingData)
-      );
+      localStorage.setItem(REGISTER_PENDING_KEY, JSON.stringify(pendingData));
 
       clearSavedDraft();
       setForm(initialRegisterForm);
@@ -208,87 +231,161 @@ export default function RegisterPage() {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-[#f5f7fb] px-4 py-6 lg:px-8 lg:py-8">
-        <div className="mx-auto max-w-7xl">
-          <RegisterHeader />
+      <div className="min-h-screen bg-slate-100">
+        <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8 lg:py-8">
+          <div className="mb-6">
+            <RegisterHeader />
+          </div>
+
+          <div className="mb-4">
+            <InfoStrip
+              hasSelectedLocation={hasSelectedLocation}
+              coverageRadiusKm={form.coverageRadiusKm}
+            />
+          </div>
 
           <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-              <div className="space-y-6 xl:col-span-5">
-                <RescueInfoSection
-                  form={form}
-                  onChange={handleChange}
-                  errors={errors}
-                />
-
-                <LocationDetailSection
-                  form={form}
-                  onChange={handleChange}
-                  errors={errors}
-                />
-
-                {hasFormData(form) && (
-                  <div className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                    <p className="text-sm text-amber-700">
-                      ระบบบันทึกแบบร่างอัตโนมัติแล้ว
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+              <div className="space-y-5 xl:col-span-5">
+                <div className="border border-slate-200 bg-white">
+                  <div className="border-b border-slate-200 px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-900">
+                      ข้อมูลหน่วยกู้ภัย
                     </p>
-                    <button
-                      type="button"
-                      onClick={handleResetDraft}
-                      className="text-sm font-medium text-amber-800 underline underline-offset-2"
-                    >
-                      ล้างข้อมูล
-                    </button>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      กรอกรายละเอียดพื้นฐานของหน่วยและผู้ประสานงาน
+                    </p>
                   </div>
-                )}
-
-                {(errors.location || submitError) && (
-                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
-                    {errors.location && (
-                      <p className="text-sm text-red-700">{errors.location}</p>
-                    )}
-                    {submitError && (
-                      <p className="text-sm text-red-700">{submitError}</p>
-                    )}
+                  <div className="p-4">
+                    <RescueInfoSection
+                      form={form}
+                      onChange={handleChange}
+                      errors={errors}
+                    />
                   </div>
-                )}
+                </div>
 
-                <RegisterActions
-                  submitting={submitting}
-                  onBack={handleBack}
-                  submitLabel="สมัครหน่วยกู้ภัย"
-                />
+                <div className="border border-slate-200 bg-white">
+                  <div className="border-b border-slate-200 px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-900">
+                      รายละเอียดพื้นที่รับผิดชอบ
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      ระบุจังหวัด อำเภอ ที่อยู่ และรัศมีการครอบคลุม
+                    </p>
+                  </div>
+                  <div className="p-4">
+                    <LocationDetailSection
+                      form={form}
+                      onChange={handleChange}
+                      errors={errors}
+                    />
+                  </div>
+                </div>
+
+                {hasFormData(form) ? (
+                  <div className="border border-amber-200 bg-amber-50 px-4 py-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-amber-800">
+                        ระบบบันทึกแบบร่างอัตโนมัติแล้ว
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleResetDraft}
+                        className="text-sm font-medium text-amber-900 hover:underline"
+                      >
+                        ล้างข้อมูล
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {errors.location || submitError ? (
+                  <div className="border border-rose-200 bg-rose-50 px-4 py-3">
+                    {errors.location ? (
+                      <p className="text-sm text-rose-700">{errors.location}</p>
+                    ) : null}
+                    {submitError ? (
+                      <p className="text-sm text-rose-700">{submitError}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div className="border border-slate-200 bg-white">
+                  <div className="px-4 py-4">
+                    <RegisterActions
+                      submitting={submitting}
+                      onBack={handleBack}
+                      submitLabel="สมัครหน่วยกู้ภัย"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="xl:col-span-7">
-                <div className="overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm">
-                  <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 lg:px-6">
+                <div className="border border-slate-200 bg-white">
+                  <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-50 text-red-500">
+                      <div className="flex h-10 w-10 items-center justify-center border border-slate-200 bg-slate-50 text-slate-700">
                         <MapIcon />
                       </div>
 
                       <div>
-                        <p className="text-base font-semibold text-gray-900">
-                          เลือกตำแหน่งบนแผนที่
+                        <p className="text-sm font-semibold text-slate-900">
+                          ตำแหน่งฐานหน่วยกู้ภัย
                         </p>
-                        <p className="text-xs text-gray-500">
-                          กำหนดจุดฐานและพื้นที่ครอบคลุมของหน่วยกู้ภัย
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          เลือกตำแหน่งบนแผนที่เพื่อกำหนดจุดฐานและพื้นที่ครอบคลุม
                         </p>
                       </div>
                     </div>
 
-                    <div className="hidden rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500 lg:block">
-                      {hasSelectedLocation ? "Location Selected" : "Map Console"}
+                    <div className="inline-flex items-center border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
+                      {hasSelectedLocation ? "เลือกตำแหน่งแล้ว" : "รอเลือกตำแหน่ง"}
                     </div>
                   </div>
 
-                  <div className="p-4 lg:p-5">
-                    <MapPicker
-                      value={mapValue}
-                      radiusKm={Number(form.coverageRadiusKm || 0)}
-                      onChange={handleLocationSelect}
-                    />
+                  <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div>
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                          Latitude
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {form.baseLat != null ? Number(form.baseLat).toFixed(6) : "-"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                          Longitude
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {form.baseLng != null ? Number(form.baseLng).toFixed(6) : "-"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                          Coverage Radius
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {form.coverageRadiusKm && Number(form.coverageRadiusKm) > 0
+                            ? `${Number(form.coverageRadiusKm)} กม.`
+                            : "-"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4">
+                    <div className="overflow-hidden border border-slate-200">
+                      <MapPicker
+                        value={mapValue}
+                        radiusKm={Number(form.coverageRadiusKm || 0)}
+                        onChange={handleLocationSelect}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

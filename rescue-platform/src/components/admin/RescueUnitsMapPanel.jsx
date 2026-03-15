@@ -52,6 +52,22 @@ const inactiveIcon = new L.DivIcon({
   iconAnchor: [7, 7],
 });
 
+const incidentIcon = new L.DivIcon({
+  className: "",
+  html: `
+    <div style="
+      width:14px;
+      height:14px;
+      background:#2563eb;
+      border:2px solid #fff;
+      border-radius:9999px;
+      box-shadow:0 0 0 2px rgba(37,99,235,0.18);
+    "></div>
+  `,
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
+});
+
 function getMarkerIcon(status) {
   switch (status) {
     case "active":
@@ -111,10 +127,51 @@ function formatStatusLabel(status) {
   }
 }
 
+function formatDateTime(value) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatPercent(value) {
+  if (value == null) return "-";
+  return `${(Number(value) * 100).toFixed(0)}%`;
+}
+
+function getIncidentCoordinate(item) {
+  if (item?.event_lat != null && item?.event_lng != null) {
+    return {
+      lat: Number(item.event_lat),
+      lng: Number(item.event_lng),
+      source: "event",
+    };
+  }
+
+  if (item?.photo_lat != null && item?.photo_lng != null) {
+    return {
+      lat: Number(item.photo_lat),
+      lng: Number(item.photo_lng),
+      source: "photo",
+    };
+  }
+
+  return null;
+}
+
 export default function RescueUnitsMapPanel({
   units = [],
-  title = "Rescue coverage map",
-  subtitle = "ตำแหน่งหน่วยกู้ภัยที่เข้าร่วมกับระบบ",
+  incidents = [],
+  title = "แผนที่หน่วยกู้ภัยและเหตุล่าสุด",
+  subtitle = "แสดงเฉพาะหน่วยที่พร้อมใช้งานและจุดเหตุล่าสุด",
   defaultShowRadius = true,
 }) {
   const [showRadius, setShowRadius] = useState(defaultShowRadius);
@@ -125,6 +182,7 @@ export default function RescueUnitsMapPanel({
       const lng = unit.base_lng ?? unit.lng;
 
       return (
+        unit.status === "active" &&
         lat != null &&
         lng != null &&
         !Number.isNaN(Number(lat)) &&
@@ -133,17 +191,28 @@ export default function RescueUnitsMapPanel({
     });
   }, [units]);
 
+  const validIncidents = useMemo(() => {
+    return incidents.filter((item) => {
+      const point = getIncidentCoordinate(item);
+      return point && !Number.isNaN(point.lat) && !Number.isNaN(point.lng);
+    });
+  }, [incidents]);
+
   const center =
     validUnits.length > 0
       ? [
           Number(validUnits[0].base_lat ?? validUnits[0].lat),
           Number(validUnits[0].base_lng ?? validUnits[0].lng),
         ]
+      : validIncidents.length > 0
+      ? [
+          getIncidentCoordinate(validIncidents[0]).lat,
+          getIncidentCoordinate(validIncidents[0]).lng,
+        ]
       : DEFAULT_CENTER;
 
-  const activeCount = validUnits.filter((u) => u.status === "active").length;
-  const pendingCount = validUnits.filter((u) => u.status === "pending").length;
-  const inactiveCount = validUnits.filter((u) => u.status === "inactive").length;
+  const activeCount = validUnits.length;
+  const incidentCount = validIncidents.length;
 
   return (
     <section className="border border-slate-200 bg-white">
@@ -156,25 +225,19 @@ export default function RescueUnitsMapPanel({
         <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
           <span className="inline-flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-rose-600" />
-            Active
+            หน่วยพร้อมใช้งาน
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-            Pending
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
-            Inactive
+            <span className="h-2.5 w-2.5 rounded-full bg-blue-600" />
+            เหตุล่าสุด
           </span>
         </div>
       </div>
 
       <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
-          <span>ทั้งหมด {validUnits.length} หน่วย</span>
-          <span>Active {activeCount}</span>
-          <span>Pending {pendingCount}</span>
-          <span>Inactive {inactiveCount}</span>
+          <span>หน่วยพร้อม {activeCount} หน่วย</span>
+          <span>เหตุล่าสุด {incidentCount} จุด</span>
         </div>
 
         <label className="inline-flex items-center gap-2 text-sm text-slate-700">
@@ -206,7 +269,7 @@ export default function RescueUnitsMapPanel({
             const radiusKm = Number(unit.coverage_km || 0);
 
             return (
-              <div key={unit.id}>
+              <div key={`unit-${unit.id}`}>
                 {showRadius && radiusKm > 0 ? (
                   <Circle
                     center={[lat, lng]}
@@ -251,15 +314,60 @@ export default function RescueUnitsMapPanel({
                           <span className="font-medium">LINE:</span>{" "}
                           {unit.line_user_id ? "เชื่อมแล้ว" : "ยังไม่ผูก"}
                         </p>
-                        <p>
-                          <span className="font-medium">LINE Group:</span>{" "}
-                          {unit.line_group_id || "-"}
-                        </p>
                       </div>
                     </div>
                   </Popup>
                 </Marker>
               </div>
+            );
+          })}
+
+          {validIncidents.map((incident) => {
+            const point = getIncidentCoordinate(incident);
+
+            return (
+              <Marker
+                key={`incident-${incident.id}`}
+                position={[point.lat, point.lng]}
+                icon={incidentIcon}
+              >
+                <Popup>
+                  <div className="min-w-[220px] text-sm">
+                    <p className="font-semibold text-slate-900">เหตุล่าสุด</p>
+
+                    <div className="mt-2 space-y-1 text-slate-700">
+                      <p>
+                        <span className="font-medium">ความมั่นใจ:</span>{" "}
+                        {formatPercent(incident.confidence)}
+                      </p>
+                      <p>
+                        <span className="font-medium">เวลา:</span>{" "}
+                        {formatDateTime(incident.created_at)}
+                      </p>
+                      <p>
+                        <span className="font-medium">หน่วยที่เกี่ยวข้อง:</span>{" "}
+                        {incident.rescue_units?.name || "-"}
+                      </p>
+                      <p>
+                        <span className="font-medium">พิกัด:</span>{" "}
+                        {point.lat.toFixed(5)}, {point.lng.toFixed(5)}
+                      </p>
+                      {incident.image_url ? (
+                        <p>
+                          <a
+                            href={incident.image_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 hover:underline"
+                          >
+                            ดูรูป
+                          </a>
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
             );
           })}
         </MapContainer>
