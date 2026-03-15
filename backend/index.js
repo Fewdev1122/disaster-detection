@@ -11,6 +11,14 @@ import airRoute from "./routes/air.js";
 import adminRescueRouter from "./routes/adminRescue.js";
 import incidentsRouter from "./routes/incidents.js";
 dotenv.config({ path: path.resolve(process.cwd(), "../.env") });
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const imagesDir = path.join(__dirname, "images")
+console.log("imagesDir =", imagesDir);
 
 console.log(
   "CHANNEL_ACCESS_TOKEN:",
@@ -38,7 +46,20 @@ app.use(cors());
 app.use("/webhook", webhookRouter);
 
 app.use(express.json({ limit: "20mb" }));
-app.use("/images", express.static(path.join(process.cwd(), "images")));
+app.get("/debug/images", (req, res) => {
+  try {
+    const files = fs.existsSync(imagesDir) ? fs.readdirSync(imagesDir) : [];
+    res.json({
+      imagesDir,
+      exists: fs.existsSync(imagesDir),
+      files,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.use("/images", express.static(imagesDir));
 
 app.get("/", (req, res) => {
   res.send("server ok");
