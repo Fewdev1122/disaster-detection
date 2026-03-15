@@ -1,4 +1,6 @@
 import express from "express";
+import fs from "fs";
+import path from "path";
 import { resizeImageForAI, deleteTempImage } from "../utils/resize.js";
 import { saveBase64Image, readImageMetadata } from "../utils/image.js";
 import {
@@ -13,6 +15,27 @@ import { pushToRescueGroup } from "../services/lineService.js";
 import { saveIncident } from "../services/incidentService.js";
 
 const router = express.Router();
+
+function extractBase64Parts(base64Image) {
+  const matches = base64Image.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+
+  if (!matches) {
+    throw new Error("รูปแบบ base64 ไม่ถูกต้อง");
+  }
+
+  return {
+    mimeType: matches[1],
+    base64Data: matches[2],
+  };
+}
+
+function getExtensionFromMime(mimeType = "") {
+  const type = mimeType.toLowerCase();
+
+  if (type === "image/png") return ".png";
+  if (type === "image/webp") return ".webp";
+  return ".jpg";
+}
 
 router.post("/", async (req, res) => {
   const t0 = Date.now();
@@ -33,14 +56,12 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Image missing" });
     }
 
-    const t1 = Date.now();
-    const { fileName, filePath } = saveBase64Image(image, "report");
-    console.log("saveBase64Image:", Date.now() - t1, "ms");
-
-    const imageUrl = `${process.env.BASE_URL}/images/${fileName}`;
+    const { mimeType, base64Data } = extractBase64Parts(image);
+    const imageBuffer = Buffer.from(base64Data, "base64");
+    const fileExt = getExtensionFromMime(mimeType);
 
     const t2 = Date.now();
-    const metadata = await readImageMetadata(filePath);
+    const metadata = await readImageMetadata(imageBuffer);
     console.log("readImageMetadata:", Date.now() - t2, "ms");
 
     let prediction = null;
@@ -48,7 +69,13 @@ router.post("/", async (req, res) => {
 
     try {
       const t3 = Date.now();
-      aiImagePath = await resizeImageForAI(filePath);
+
+      // resizeImageForAI เดิมน่าจะรับ path local
+      // เลยสร้าง temp file ชั่วคราวเพื่อใช้กับ flow เดิม
+      const tempOriginalPath = path.join("/tmp", `report-${Date.now()}${fileExt}`);
+      fs.writeFileSync(tempOriginalPath, imageBuffer);
+
+      aiImagePath = await resizeImageForAI(tempOriginalPath);
       console.log("resizeImageForAI:", Date.now() - t3, "ms");
 
       const t4 = Date.now();
@@ -57,6 +84,7 @@ router.post("/", async (req, res) => {
       console.log("Prediction:", prediction);
 
       await deleteTempImage(aiImagePath);
+      await deleteTempImage(tempOriginalPath);
     } catch (aiErr) {
       console.error(
         "AI prediction error:",
@@ -75,16 +103,15 @@ router.post("/", async (req, res) => {
 
     // -----------------------------
     // เลือกพิกัดเหตุการณ์
-    // priority:
     // 1) พิกัดจาก frontend ที่อ่านจากรูป
     // 2) พิกัด EXIF ที่ backend อ่านเอง
-    // 3) พิกัดปัจจุบันของเครื่อง / ตอนกดแจ้ง
+    // 3) พิกัดปัจจุบันของเครื่อง
     // -----------------------------
     const exifPhotoLat = photo_lat ?? metadata.latitude ?? null;
     const exifPhotoLng = photo_lng ?? metadata.longitude ?? null;
 
-    const reporterLat = current_lat ?? null;
-    const reporterLng = current_lng ?? null;
+    const reporterLat = current_lat ?? lat ?? null;
+    const reporterLng = current_lng ?? lng ?? null;
 
     let incidentLat = null;
     let incidentLng = null;
@@ -100,13 +127,22 @@ router.post("/", async (req, res) => {
       finalLocationSource = location_source || "device_gps";
     }
 
+    // อัปโหลดขึ้น Supabase Storage
+    const t1 = Date.now();
+    const { fileName, imageUrl } = await saveBase64Image(image, "report");
+    console.log("saveBase64Image (Supabase Storage):", Date.now() - t1, "ms");
+    console.log("imageUrl:", imageUrl);
+
     if (!prediction || !shouldSendAlert(prediction)) {
+      // จะเก็บ incident normal หรือไม่แล้วแต่คุณ
+      // ตอนนี้คง behavior เดิม คือไม่ส่งแจ้งเตือน
       console.log("TOTAL:", Date.now() - t0, "ms");
 
       return res.json({
         success: true,
         message: "normal detected, no alert sent",
         prediction,
+        image_url: imageUrl,
         event_lat: incidentLat,
         event_lng: incidentLng,
         photo_lat: exifPhotoLat,
@@ -121,6 +157,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json({
         error: "ไม่พบพิกัดเหตุการณ์",
         prediction,
+        image_url: imageUrl,
       });
     }
 
@@ -134,6 +171,7 @@ router.post("/", async (req, res) => {
       return res.status(404).json({
         error: "ไม่พบหน่วยกู้ภัยที่ครอบคลุมพื้นที่นี้",
         prediction,
+        image_url: imageUrl,
         event_lat: incidentLat,
         event_lng: incidentLng,
         photo_lat: exifPhotoLat,
@@ -148,18 +186,14 @@ router.post("/", async (req, res) => {
       title: "🚨 แจ้งเหตุภัยพิบัติ",
       reportTimestamp: Date.now(),
 
-      // พิกัดคนแจ้ง
       reporterLat,
       reporterLng,
 
-      // พิกัดจากรูป
       photoLat: exifPhotoLat,
       photoLng: exifPhotoLng,
 
-      // เวลาในรูป
       photoDate: metadata.photoDate,
 
-      // พิกัดเหตุที่ระบบใช้จริง
       eventLat: incidentLat,
       eventLng: incidentLng,
       locationSource: finalLocationSource,
@@ -187,11 +221,13 @@ router.post("/", async (req, res) => {
       });
     }
 
-    messages.push({
-      type: "image",
-      originalContentUrl: imageUrl,
-      previewImageUrl: imageUrl,
-    });
+    if (imageUrl) {
+      messages.push({
+        type: "image",
+        originalContentUrl: imageUrl,
+        previewImageUrl: imageUrl,
+      });
+    }
 
     const t6 = Date.now();
     pushToRescueGroup(nearestRescue.line_group_id, messages)
@@ -206,18 +242,16 @@ router.post("/", async (req, res) => {
     saveIncident({
       sourceType: "web_report",
       imageUrl,
+      imageFileName: fileName,
       disasterType: prediction?.class || null,
       confidence: prediction?.confidence ?? null,
 
-      // พิกัดเหตุที่ระบบใช้จริง
       eventLat: incidentLat,
       eventLng: incidentLng,
 
-      // พิกัดจากรูป
       photoLat: exifPhotoLat,
       photoLng: exifPhotoLng,
 
-      // ถ้า saveIncident รองรับ เพิ่มเก็บพิกัดคนแจ้งด้วย
       reportLat: reporterLat,
       reportLng: reporterLng,
 
@@ -241,6 +275,7 @@ router.post("/", async (req, res) => {
     return res.json({
       success: true,
       prediction,
+      image_url: imageUrl,
       nearest_rescue: nearestRescue,
       event_lat: incidentLat,
       event_lng: incidentLng,

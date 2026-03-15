@@ -1,5 +1,7 @@
 /* eslint-disable no-undef */
 import express from "express";
+import fs from "fs";
+import path from "path";
 
 import { lineClient, lineMiddleware } from "../config/line.js";
 import {
@@ -7,6 +9,7 @@ import {
   saveBufferImage,
   readImageMetadata,
 } from "../utils/image.js";
+import { deleteTempImage } from "../utils/resize.js";
 import {
   buildPredictionText,
   buildReportText,
@@ -26,10 +29,6 @@ const router = express.Router();
 
 function extractConnectCode(text = "") {
   const trimmed = String(text).trim().toUpperCase();
-
-  // รองรับทั้ง:
-  // RCU-ABC123
-  // เชื่อมกลุ่ม RCU-ABC123
   const match = trimmed.match(/RCU-[A-Z0-9]+/);
   return match ? match[0] : null;
 }
@@ -48,9 +47,6 @@ router.post("/", lineMiddleware, async (req, res) => {
         console.log("EVENT SOURCE:", event.source);
         console.log("EVENT TYPE:", event.type, event.message?.type);
 
-        // -----------------------------
-        // 1) Bot ถูกเชิญเข้ากลุ่ม
-        // -----------------------------
         if (event.type === "join") {
           await lineClient.replyMessage(event.replyToken, {
             type: "text",
@@ -67,9 +63,6 @@ router.post("/", lineMiddleware, async (req, res) => {
 
         if (event.type !== "message") continue;
 
-        // -----------------------------
-        // 2) Text message
-        // -----------------------------
         if (event.message.type === "text") {
           const incomingText = event.message.text || "";
           const connectCode = extractConnectCode(incomingText);
@@ -79,7 +72,6 @@ router.post("/", lineMiddleware, async (req, res) => {
           console.log("SOURCE TYPE:", event.source?.type);
           console.log("SOURCE USER ID:", event.source?.userId);
 
-          // 5.1 ผูก LINE user ในแชตส่วนตัว
           if (connectCode && event.source?.type === "user") {
             console.log("ENTER USER BIND FLOW");
             try {
@@ -121,11 +113,7 @@ router.post("/", lineMiddleware, async (req, res) => {
             }
           }
 
-          // 5.2 ผูกกลุ่ม หลัง invite bot เข้ากลุ่มแล้ว
-          if (
-            connectCode &&
-            (event.source?.type === "group" || event.source?.type === "room")
-          ) {
+          if (connectCode && isGroupLikeSource(event.source?.type)) {
             try {
               const groupId = event.source?.groupId || event.source?.roomId;
 
@@ -173,9 +161,6 @@ router.post("/", lineMiddleware, async (req, res) => {
           continue;
         }
 
-        // -----------------------------
-        // 3) Image message
-        // -----------------------------
         if (event.message.type === "image") {
           console.log("STEP 1: reply loading");
           await lineClient.replyMessage(event.replyToken, {
@@ -186,30 +171,43 @@ router.post("/", lineMiddleware, async (req, res) => {
           console.log("STEP 2: get image content");
           const imageBuffer = await getImageContent(event.message.id);
 
-          console.log("STEP 3: save image");
-          const { fileName, filePath } = saveBufferImage(
-            imageBuffer,
-            "line",
-            ".jpg"
-          );
-          const imageUrl = `${process.env.BASE_URL}/images/${fileName}`;
-          console.log("imageUrl:", imageUrl);
-
-          console.log("STEP 4: read metadata");
-          const metadata = await readImageMetadata(filePath);
+          console.log("STEP 3: read metadata from buffer");
+          const metadata = await readImageMetadata(imageBuffer);
           console.log("metadata:", metadata);
 
           let prediction = null;
+          let tempOriginalPath = null;
+
           try {
+            console.log("STEP 4: prepare temp file for AI");
+            tempOriginalPath = path.join("/tmp", `line-${Date.now()}.jpg`);
+            fs.writeFileSync(tempOriginalPath, imageBuffer);
+
             console.log("STEP 5: predict disaster");
-            prediction = await predictDisaster(filePath);
+            prediction = await predictDisaster(tempOriginalPath);
             console.log("prediction:", prediction);
+
+            await deleteTempImage(tempOriginalPath);
+            tempOriginalPath = null;
           } catch (aiErr) {
             console.error(
               "AI prediction error full:",
               aiErr.response?.data || aiErr.message
             );
+
+            if (tempOriginalPath) {
+              await deleteTempImage(tempOriginalPath);
+            }
           }
+
+          console.log("STEP 6: upload image to Supabase Storage");
+          const { fileName, imageUrl } = await saveBufferImage(
+            imageBuffer,
+            "line",
+            ".jpg"
+          );
+          console.log("fileName:", fileName);
+          console.log("imageUrl:", imageUrl);
 
           if (!shouldSendAlert(prediction)) {
             console.log("Prediction normal → skip LINE alert");
@@ -220,7 +218,7 @@ router.post("/", lineMiddleware, async (req, res) => {
           const incidentLng = metadata.longitude;
           console.log("incidentLat/Lng:", incidentLat, incidentLng);
 
-          console.log("STEP 6: find nearest rescue");
+          console.log("STEP 7: find nearest rescue");
           const nearestRescue =
             incidentLat != null && incidentLng != null
               ? await findNearestRescue(incidentLat, incidentLng)
@@ -255,7 +253,7 @@ router.post("/", lineMiddleware, async (req, res) => {
             `${buildRescueText(nearestRescue)}\n\n` +
             `${buildPredictionText(prediction)}`;
 
-          console.log("STEP 7: build messages");
+          console.log("STEP 8: build messages");
           const messages = [
             {
               type: "text",
@@ -273,21 +271,24 @@ router.post("/", lineMiddleware, async (req, res) => {
             });
           }
 
-          messages.push({
-            type: "image",
-            originalContentUrl: imageUrl,
-            previewImageUrl: imageUrl,
-          });
+          if (imageUrl) {
+            messages.push({
+              type: "image",
+              originalContentUrl: imageUrl,
+              previewImageUrl: imageUrl,
+            });
+          }
 
           console.log("messages:", JSON.stringify(messages, null, 2));
 
-          console.log("STEP 8: push to rescue group");
+          console.log("STEP 9: push to rescue group");
           await pushToRescueGroup(nearestRescue.line_group_id, messages);
 
-          console.log("STEP 9: save incident");
+          console.log("STEP 10: save incident");
           await saveIncident({
             sourceType: "line_webhook",
             imageUrl,
+            imageFileName: fileName,
             disasterType: prediction?.class || null,
             confidence: prediction?.confidence ?? null,
             eventLat: incidentLat,

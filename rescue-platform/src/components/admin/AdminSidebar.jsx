@@ -5,7 +5,7 @@ const primaryMenus = [
   { label: "Rescue Requests", to: "/admin/requests", badge: 8 },
   { label: "Rescue Units", to: "/admin/units" },
   { label: "Incidents", to: "/admin/incidents", badge: 3 },
-  { label: "Coverage Map", to: "/admin/coverage" },
+  { label: "Live Map", to: "/admin/live-map" },
   { label: "Reports", to: "/admin/reports" },
 ];
 
