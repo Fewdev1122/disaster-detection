@@ -21,30 +21,6 @@ export function formatDisasterLabel(label) {
   return map[label] || label;
 }
 
-export function buildPredictionText(prediction) {
-  if (!prediction || !prediction.class) {
-    return "ไม่สามารถวิเคราะห์ภาพได้";
-  }
-
-  return `ประเภทเหตุ: ${formatDisasterLabel(prediction.class)}`;
-}
-
-export function buildMapLink(lat, lng) {
-  if (lat == null || lng == null) {
-    return null;
-  }
-
-  return `https://maps.google.com/?q=${Number(lat).toFixed(5)},${Number(lng).toFixed(5)}`;
-}
-
-export function formatLocationLine(label, lat, lng) {
-  if (lat == null || lng == null) {
-    return `${label}: -`;
-  }
-
-  return `${label}: ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
-}
-
 export function formatLocationSource(source) {
   const map = {
     image_exif: "พิกัดจากรูปภาพ",
@@ -53,6 +29,14 @@ export function formatLocationSource(source) {
   };
 
   return map[source] || source || "-";
+}
+
+export function buildPredictionText(prediction) {
+  if (!prediction || !prediction.class) {
+    return "ประเภทเหตุ: ไม่สามารถวิเคราะห์ได้";
+  }
+
+  return `ประเภทเหตุ: ${formatDisasterLabel(prediction.class)}`;
 }
 
 export function buildReportText({
@@ -67,19 +51,26 @@ export function buildReportText({
   eventLng,
   locationSource,
 }) {
-  const lines = [title, ""];
+  const lines = [
+    title,
+    "",
+  ];
 
-  lines.push(`เวลาในรูป: ${photoDate || "-"}`);
+  if (photoDate) {
+    lines.push(`เวลาในรูป: ${photoDate}`);
+  }
+
   lines.push(`เวลาแจ้งเหตุ: ${formatThaiDate(reportTimestamp)}`);
+  lines.push("");
 
   if (eventLat != null && eventLng != null) {
     lines.push(
-      `พิกัดเหตุที่ใช้แจ้ง: ${Number(eventLat).toFixed(5)}, ${Number(eventLng).toFixed(5)}`
+      `ตำแหน่งเหตุ: ${Number(eventLat).toFixed(5)}, ${Number(eventLng).toFixed(5)}`
     );
   }
 
   if (locationSource) {
-    lines.push(`แหล่งพิกัดหลัก: ${formatLocationSource(locationSource)}`);
+    lines.push(`แหล่งพิกัด: ${formatLocationSource(locationSource)}`);
   }
 
   if (photoLat != null && photoLng != null) {
@@ -99,10 +90,10 @@ export function buildReportText({
 
 export function buildRescueText(rescue) {
   if (!rescue) {
-    return "ยังไม่พบหน่วยกู้ภัยที่เหมาะสม";
+    return "หน่วยที่รับแจ้ง: ไม่พบหน่วยที่เหมาะสม";
   }
 
-  const lines = ["หน่วยที่รับแจ้ง", `${rescue.name}`];
+  const lines = [`หน่วยที่รับแจ้ง: ${rescue.name}`];
 
   if (rescue.distance_km != null) {
     lines.push(`ระยะห่าง: ${Number(rescue.distance_km).toFixed(2)} กม.`);
@@ -112,13 +103,5 @@ export function buildRescueText(rescue) {
 }
 
 export function shouldSendAlert(prediction) {
-  if (!prediction || !prediction.class) {
-    return true;
-  }
-
-  if (prediction.class === "normal") {
-    return true;
-  }
-
   return true;
 }
