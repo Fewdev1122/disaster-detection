@@ -5,26 +5,37 @@ const router = express.Router();
 
 router.get("/recent", async (req, res) => {
   try {
-    const limit = Number(req.query.limit || 5);
+    const parsedLimit = Number(req.query.limit);
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
+      ? parsedLimit
+      : 5;
 
     const { data, error } = await supabase
       .from("incident_reports")
       .select(`
-    id,
-    disaster_type,
-    confidence,
-    image_url,
-    created_at,
-    rescue_units (
-      name
-    )
-  `)
+        id,
+        disaster_type,
+        confidence,
+        image_url,
+        created_at,
+        event_lat,
+        event_lng,
+        photo_lat,
+        photo_lng,
+        rescue_unit_id,
+        rescue_units (
+          id,
+          name,
+          base_lat,
+          base_lng
+        )
+      `)
       .order("created_at", { ascending: false })
       .limit(limit);
 
     if (error) throw error;
 
-    return res.json({ data });
+    return res.json({ data: data || [] });
   } catch (err) {
     console.error("GET /api/incidents/recent error:", err);
     return res.status(500).json({

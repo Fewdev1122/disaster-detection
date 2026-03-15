@@ -19,12 +19,125 @@ function toneBadge(tone) {
       return "bg-amber-50 text-amber-700 border border-amber-200";
     case "emerald":
       return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+    case "slate":
     default:
       return "bg-slate-100 text-slate-700 border border-slate-200";
   }
 }
 
+function disasterBadge(type) {
+  switch (type) {
+    case "fire":
+      return "bg-rose-50 text-rose-700 border border-rose-200";
+    case "flood":
+      return "bg-blue-50 text-blue-700 border border-blue-200";
+    case "smoke":
+      return "bg-slate-100 text-slate-700 border border-slate-200";
+    case "fog":
+      return "bg-violet-50 text-violet-700 border border-violet-200";
+    case "dust":
+      return "bg-amber-50 text-amber-700 border border-amber-200";
+    default:
+      return "bg-slate-100 text-slate-700 border border-slate-200";
+  }
+}
 
+function formatDateTime(value) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatCoordinate(lat, lng) {
+  if (lat == null || lng == null) return "-";
+  return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+}
+
+function getIncidentCoordinate(item) {
+  if (item?.event_lat != null && item?.event_lng != null) {
+    return {
+      lat: Number(item.event_lat),
+      lng: Number(item.event_lng),
+      source: "event",
+    };
+  }
+
+  if (item?.photo_lat != null && item?.photo_lng != null) {
+    return {
+      lat: Number(item.photo_lat),
+      lng: Number(item.photo_lng),
+      source: "photo",
+    };
+  }
+
+  return null;
+}
+
+function formatIncidentLocation(item) {
+  const point = getIncidentCoordinate(item);
+  if (!point) return "-";
+  return formatCoordinate(point.lat, point.lng);
+}
+
+function getIncidentLocationLabel(item) {
+  const point = getIncidentCoordinate(item);
+  if (!point) return "";
+  return point.source === "event" ? "Event" : "Photo";
+}
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 6371;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function formatDistanceToUnit(item) {
+  const incidentPoint = getIncidentCoordinate(item);
+
+  const unitLat =
+    item?.rescue_units?.base_lat != null
+      ? Number(item.rescue_units.base_lat)
+      : null;
+  const unitLng =
+    item?.rescue_units?.base_lng != null
+      ? Number(item.rescue_units.base_lng)
+      : null;
+
+  if (!incidentPoint || unitLat == null || unitLng == null) {
+    return "-";
+  }
+
+  const distance = haversineKm(
+    incidentPoint.lat,
+    incidentPoint.lng,
+    unitLat,
+    unitLng
+  );
+
+  if (Number.isNaN(distance)) return "-";
+  return `${distance.toFixed(1)} km`;
+}
 
 function Panel({ title, subtitle, right, children, className = "" }) {
   return (
@@ -188,6 +301,8 @@ function RecentIncidentsTable({ incidents }) {
     { key: "confidence", label: "Confidence" },
     { key: "unit", label: "Unit" },
     { key: "reportedAt", label: "Reported At" },
+    { key: "location", label: "Location" },
+    { key: "distance", label: "Distance to Unit" },
     { key: "image", label: "Image" },
   ];
 
@@ -205,54 +320,81 @@ function RecentIncidentsTable({ incidents }) {
         columns={columns}
         rows={incidents}
         emptyText="ยังไม่มีข้อมูลเหตุล่าสุด"
-        renderRow={(item) => (
-          <tr key={item.id} className="hover:bg-slate-50">
-            <td className="px-4 py-3">
-              <span
-                className={cx(
-                  "inline-flex rounded px-2 py-1 text-xs font-medium",
-                  item.disaster_type
-                )}
-              >
-                {item.disaster_type || "-"}
-              </span>
-            </td>
+        renderRow={(item) => {
+          const point = getIncidentCoordinate(item);
+          const locationText = formatIncidentLocation(item);
+          const locationLabel = getIncidentLocationLabel(item);
 
-            <td className="px-4 py-3 text-sm text-slate-700">
-              {item.confidence != null
-                ? `${(Number(item.confidence) * 100).toFixed(0)}%`
-                : "-"}
-            </td>
-
-            <td className="px-4 py-3 text-sm text-slate-700">
-              {item.rescue_units?.name || item.rescue_unit_name || "-"}
-            </td>
-
-            <td className="px-4 py-3 text-sm text-slate-700">
-              {item.created_at
-                ? new Date(item.created_at).toLocaleTimeString("th-TH", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-                : "-"}
-            </td>
-
-            <td className="px-4 py-3 text-sm">
-              {item.image_url ? (
-                <a
-                  href={item.image_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-blue-600 hover:underline"
+          return (
+            <tr key={item.id} className="hover:bg-slate-50">
+              <td className="px-4 py-3">
+                <span
+                  className={cx(
+                    "inline-flex rounded px-2 py-1 text-xs font-medium",
+                    disasterBadge(item.disaster_type)
+                  )}
                 >
-                  View
-                </a>
-              ) : (
-                "-"
-              )}
-            </td>
-          </tr>
-        )}
+                  {item.disaster_type || "-"}
+                </span>
+              </td>
+
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {item.confidence != null
+                  ? `${(Number(item.confidence) * 100).toFixed(0)}%`
+                  : "-"}
+              </td>
+
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {item.rescue_units?.name || item.rescue_unit_name || "-"}
+              </td>
+
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {formatDateTime(item.created_at)}
+              </td>
+
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {point ? (
+                  <div className="flex flex-col">
+                    <a
+                      href={`https://www.google.com/maps?q=${point.lat},${point.lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      {locationText}
+                    </a>
+                    {locationLabel ? (
+                      <span className="mt-0.5 text-xs text-slate-500">
+                        {locationLabel} coordinates
+                      </span>
+                    ) : null}
+                  </div>
+                ) : (
+                  "-"
+                )}
+              </td>
+
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {formatDistanceToUnit(item)}
+              </td>
+
+              <td className="px-4 py-3 text-sm">
+                {item.image_url ? (
+                  <a
+                    href={item.image_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    View
+                  </a>
+                ) : (
+                  "-"
+                )}
+              </td>
+            </tr>
+          );
+        }}
       />
     </Panel>
   );
@@ -303,7 +445,7 @@ export default function AdminDashboard() {
 
       setUnits(unitsData || []);
       setPendingRequests(requestsData || []);
-      setRecentIncidents(incidentsData || []);
+      setRecentIncidents((incidentsData || []).slice(0, 5));
     } catch (err) {
       console.error(err);
       setError(err.message || "โหลดข้อมูล dashboard ไม่สำเร็จ");
