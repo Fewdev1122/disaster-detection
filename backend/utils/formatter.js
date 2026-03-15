@@ -26,9 +26,7 @@ export function buildPredictionText(prediction) {
     return "ไม่สามารถวิเคราะห์ภาพได้";
   }
 
-  const lines = [
-    `ประเภทเหตุ: ${formatDisasterLabel(prediction.class)}`,
-  ];
+  const lines = [`ประเภทเหตุ: ${formatDisasterLabel(prediction.class)}`];
 
   if (prediction.confidence != null) {
     const confidence =
@@ -37,6 +35,10 @@ export function buildPredictionText(prediction) {
         : prediction.confidence;
 
     lines.push(`ความมั่นใจ: ${confidence}%`);
+  }
+
+  if (prediction.note) {
+    lines.push(`หมายเหตุ: ${prediction.note}`);
   }
 
   return lines.join("\n");
@@ -76,6 +78,9 @@ export function buildReportText({
   photoLat,
   photoLng,
   photoDate,
+  eventLat,
+  eventLng,
+  locationSource,
 }) {
   const finalDate = photoDate ? new Date(photoDate) : new Date(reportTimestamp);
 
@@ -84,6 +89,16 @@ export function buildReportText({
     "",
     `เวลาเหตุการณ์: ${formatThaiDate(finalDate)}`,
   ];
+
+  if (eventLat != null && eventLng != null) {
+    lines.push(
+      `พิกัดเหตุที่ใช้แจ้ง: ${Number(eventLat).toFixed(5)}, ${Number(eventLng).toFixed(5)}`
+    );
+  }
+
+  if (locationSource) {
+    lines.push(`แหล่งพิกัดหลัก: ${formatLocationSource(locationSource)}`);
+  }
 
   if (photoLat != null && photoLng != null) {
     lines.push(
@@ -105,10 +120,7 @@ export function buildRescueText(rescue) {
     return "ยังไม่พบหน่วยกู้ภัยที่เหมาะสม";
   }
 
-  const lines = [
-    "หน่วยที่รับแจ้ง",
-    `${rescue.name}`,
-  ];
+  const lines = ["หน่วยที่รับแจ้ง", `${rescue.name}`];
 
   if (rescue.distance_km != null) {
     lines.push(`ระยะห่าง: ${Number(rescue.distance_km).toFixed(2)} กม.`);
