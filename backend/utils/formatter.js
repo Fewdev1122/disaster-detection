@@ -26,22 +26,7 @@ export function buildPredictionText(prediction) {
     return "ไม่สามารถวิเคราะห์ภาพได้";
   }
 
-  const lines = [`ประเภทเหตุ: ${formatDisasterLabel(prediction.class)}`];
-
-  if (prediction.confidence != null) {
-    const confidence =
-      typeof prediction.confidence === "number"
-        ? (prediction.confidence * 100).toFixed(2)
-        : prediction.confidence;
-
-    lines.push(`ความมั่นใจ: ${confidence}%`);
-  }
-
-  if (prediction.note) {
-    lines.push(`หมายเหตุ: ${prediction.note}`);
-  }
-
-  return lines.join("\n");
+  return `ประเภทเหตุ: ${formatDisasterLabel(prediction.class)}`;
 }
 
 export function buildMapLink(lat, lng) {
