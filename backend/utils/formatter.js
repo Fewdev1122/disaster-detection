@@ -123,7 +123,7 @@ export function shouldSendAlert(prediction) {
   }
 
   if (prediction.class === "normal") {
-    return false;
+    return true;
   }
 
   return true;
