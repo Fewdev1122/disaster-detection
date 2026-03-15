@@ -82,13 +82,10 @@ export function buildReportText({
   eventLng,
   locationSource,
 }) {
-  const finalDate = photoDate ? new Date(photoDate) : new Date(reportTimestamp);
+  const lines = [title, ""];
 
-  const lines = [
-    title,
-    "",
-    `เวลาเหตุการณ์: ${formatThaiDate(finalDate)}`,
-  ];
+  lines.push(`เวลาในรูป: ${photoDate || "-"}`);
+  lines.push(`เวลาแจ้งเหตุ: ${formatThaiDate(reportTimestamp)}`);
 
   if (eventLat != null && eventLng != null) {
     lines.push(

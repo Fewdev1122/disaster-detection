@@ -78,7 +78,16 @@ export async function readImageMetadata(filePath) {
     const data = await exifr.parse(filePath, { gps: true });
 
     return {
-      photoDate: data?.DateTimeOriginal || data?.CreateDate || null,
+      photoDate:
+        data?.DateTimeOriginal?.toLocaleString?.("th-TH", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }) ||
+        data?.CreateDate?.toLocaleString?.("th-TH", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }) ||
+        null,
       latitude: data?.latitude || null,
       longitude: data?.longitude || null,
       make: data?.Make || null,

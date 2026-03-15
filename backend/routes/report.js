@@ -83,8 +83,8 @@ router.post("/", async (req, res) => {
     const exifPhotoLat = photo_lat ?? metadata.latitude ?? null;
     const exifPhotoLng = photo_lng ?? metadata.longitude ?? null;
 
-    const reporterLat = current_lat ?? lat ?? null;
-    const reporterLng = current_lng ?? lng ?? null;
+    const reporterLat = current_lat ?? null;
+    const reporterLng = current_lng ?? null;
 
     let incidentLat = null;
     let incidentLng = null;
