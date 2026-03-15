@@ -2,7 +2,10 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
 import rescueRouter from "./routes/rescue.js";
 import hotspotRouter from "./routes/hotspot.js";
 import webhookRouter from "./routes/webhook.js";
@@ -10,14 +13,13 @@ import reportRouter from "./routes/report.js";
 import airRoute from "./routes/air.js";
 import adminRescueRouter from "./routes/adminRescue.js";
 import incidentsRouter from "./routes/incidents.js";
+
 dotenv.config({ path: path.resolve(process.cwd(), "../.env") });
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const imagesDir = path.join(__dirname, "images")
+const imagesDir = path.join(__dirname, "images");
+
 console.log("imagesDir =", imagesDir);
 
 console.log(
@@ -46,6 +48,7 @@ app.use(cors());
 app.use("/webhook", webhookRouter);
 
 app.use(express.json({ limit: "20mb" }));
+
 app.get("/debug/images", (req, res) => {
   try {
     const files = fs.existsSync(imagesDir) ? fs.readdirSync(imagesDir) : [];
@@ -71,7 +74,6 @@ app.use("/api/air", airRoute);
 app.use("/api/admin", adminRescueRouter);
 app.use("/api/rescue", rescueRouter);
 app.use("/api/incidents", incidentsRouter);
-
 
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err.message);
