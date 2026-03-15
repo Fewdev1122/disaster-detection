@@ -288,7 +288,6 @@ router.post("/", lineMiddleware, async (req, res) => {
           await saveIncident({
             sourceType: "line_webhook",
             imageUrl,
-            imageFileName: fileName,
             disasterType: prediction?.class || null,
             confidence: prediction?.confidence ?? null,
             eventLat: incidentLat,
@@ -298,7 +297,6 @@ router.post("/", lineMiddleware, async (req, res) => {
             rescueUnitId: nearestRescue.id,
             rawPrediction: prediction,
           });
-
           console.log("PUSH TO RESCUE GROUP SUCCESS");
         }
       } catch (eventErr) {

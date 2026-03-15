@@ -239,22 +239,15 @@ router.post("/", async (req, res) => {
       });
 
     const t7 = Date.now();
-    saveIncident({
+    await saveIncident({
       sourceType: "web_report",
       imageUrl,
-      imageFileName: fileName,
       disasterType: prediction?.class || null,
       confidence: prediction?.confidence ?? null,
-
       eventLat: incidentLat,
       eventLng: incidentLng,
-
       photoLat: exifPhotoLat,
       photoLng: exifPhotoLng,
-
-      reportLat: reporterLat,
-      reportLng: reporterLng,
-
       rescueUnitId: nearestRescue.id,
       rawPrediction: {
         ...prediction,
