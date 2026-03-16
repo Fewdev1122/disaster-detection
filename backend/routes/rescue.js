@@ -137,7 +137,6 @@ router.get("/registration-status/:requestId", async (req, res) => {
         lineGroupId: data.line_group_id,
         lineUserId: data.line_user_id,
         reviewNote: data.review_note,
-        updatedAt: data.updated_at,
       },
     });
   } catch (err) {
