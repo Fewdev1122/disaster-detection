@@ -54,6 +54,7 @@ router.post("/register", async (req, res) => {
       ])
       .select()
       .single();
+    console.log("REGISTERED RESCUE:", data);
 
     if (error) {
       throw error;
