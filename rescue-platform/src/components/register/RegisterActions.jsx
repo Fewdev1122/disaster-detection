@@ -11,7 +11,7 @@ export default function RegisterActions({
         type="button"
         onClick={onBack}
         disabled={submitting}
-        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-300 bg-white px-5 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-10 items-center justify-center gap-2 border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <ArrowLeftIcon />
         ย้อนกลับ
@@ -20,7 +20,7 @@ export default function RegisterActions({
       <button
         type="submit"
         disabled={submitting}
-        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-500 px-6 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-70"
+        className="inline-flex h-10 items-center justify-center gap-2 border border-slate-900 bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
       >
         {submitting ? "กำลังส่งคำขอ..." : submitLabel}
         {!submitting && <ArrowRightIcon />}

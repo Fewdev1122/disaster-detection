@@ -20,6 +20,7 @@ router.post("/register", async (req, res) => {
       lat,
       lng,
       coverage_radius_km,
+      line_user_id,
     } = req.body;
 
     if (!name || lat == null || lng == null) {
@@ -45,7 +46,7 @@ router.post("/register", async (req, res) => {
           coverage_km: coverage_radius_km || 10,
           status: "pending_review",
           line_group_id: null,
-          line_user_id: null,
+          line_user_id: line_user_id || null,
           review_note: null,
           connect_code: connectCode,
           connect_code_used: false,
@@ -59,15 +60,79 @@ router.post("/register", async (req, res) => {
     }
 
     return res.status(201).json({
+      success: true,
       message: "สมัครสำเร็จ",
-      status: "pending_review",
-      connect_code: connectCode,
-      data,
+      data: {
+        id: data.id,
+        name: data.name,
+        status: data.status,
+        connectCode: data.connect_code,
+        lineUserId: data.line_user_id,
+      },
     });
   } catch (err) {
     console.error("REGISTER RESCUE ERROR:", err);
     return res.status(500).json({
+      success: false,
       message: "สมัครไม่สำเร็จ",
+      detail: err.message,
+    });
+  }
+});
+
+router.get("/registration-status/:requestId", async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    if (!requestId) {
+      return res.status(400).json({
+        success: false,
+        message: "กรุณาระบุ requestId",
+      });
+    }
+
+    const { data, error } = await supabase
+      .from("rescue_units")
+      .select(`
+        id,
+        name,
+        status,
+        connect_code,
+        connect_code_used,
+        line_group_id,
+        line_user_id,
+        review_note,
+        updated_at
+      `)
+      .eq("id", requestId)
+      .single();
+
+    if (error || !data) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบคำขอสมัครนี้",
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        id: data.id,
+        name: data.name,
+        status: data.status,
+        connectCode: data.connect_code,
+        connectCodeUsed: data.connect_code_used,
+        lineGroupId: data.line_group_id,
+        lineUserId: data.line_user_id,
+        reviewNote: data.review_note,
+        updatedAt: data.updated_at,
+      },
+    });
+  } catch (err) {
+    console.error("GET REGISTRATION STATUS ERROR:", err);
+    return res.status(500).json({
+      success: false,
+      message: "ดึงสถานะไม่สำเร็จ",
       detail: err.message,
     });
   }

@@ -8,8 +8,8 @@ export default function StepProgress({ currentStep = 1 }) {
   ];
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-      <div className="flex items-center">
+    <div className="border border-slate-200 bg-slate-50 px-4 py-4">
+      <div className="flex items-start">
         {steps.map((step, index) => {
           const isCompleted = step.id < currentStep;
           const isCurrent = step.id === currentStep;
@@ -18,45 +18,39 @@ export default function StepProgress({ currentStep = 1 }) {
           return (
             <div
               key={step.id}
-              className={`flex items-center ${!isLast ? "flex-1" : ""}`}
+              className={`flex items-start ${!isLast ? "flex-1" : ""}`}
             >
-              <div className="flex flex-col items-center text-center">
+              <div className="flex min-w-[88px] flex-col items-center text-center">
                 <div
-                  className={`
-                  flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition
-                  
-                  ${
+                  className={[
+                    "flex h-9 w-9 items-center justify-center border text-xs font-semibold transition",
                     isCompleted
-                      ? "bg-green-500 text-white"
+                      ? "border-emerald-600 bg-emerald-600 text-white"
                       : isCurrent
-                      ? "bg-red-500 text-white ring-4 ring-red-100"
-                      : "border border-gray-200 bg-white text-gray-400"
-                  }
-                  
-                `}
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-300 bg-white text-slate-400",
+                  ].join(" ")}
                 >
-                  {isCompleted ? <CheckIcon size={16} /> : step.id}
+                  {isCompleted ? <CheckIcon size={14} /> : step.id}
                 </div>
 
                 <p
-                  className={`
-                  mt-2 text-xs leading-tight
-                  ${
+                  className={[
+                    "mt-2 text-[11px] leading-4",
                     isCompleted || isCurrent
-                      ? "font-medium text-gray-800"
-                      : "text-gray-400"
-                  }
-                `}
+                      ? "font-medium text-slate-800"
+                      : "text-slate-400",
+                  ].join(" ")}
                 >
                   {step.label}
                 </p>
               </div>
 
               {!isLast && (
-                <div className="mx-3 flex-1">
+                <div className="mx-3 mt-4 flex-1">
                   <div
-                    className={`h-[2px] w-full ${
-                      step.id < currentStep ? "bg-green-400" : "bg-gray-200"
+                    className={`h-px w-full ${
+                      step.id < currentStep ? "bg-emerald-500" : "bg-slate-300"
                     }`}
                   />
                 </div>

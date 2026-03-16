@@ -52,3 +52,38 @@ export async function registerRescueUnit(form) {
 
   return data;
 }
+
+export async function getRescueRegistrationStatus(requestId) {
+  const url = `${API_BASE_URL}/api/rescue/registration-status/${requestId}`;
+
+  console.log("STATUS URL:", url);
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  const rawText = await response.text();
+
+  console.log("STATUS RESPONSE:", response.status, rawText);
+
+  let data = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    throw new Error(`Server ไม่ได้ส่ง JSON กลับมา (${response.status})`);
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message ||
+        data?.detail ||
+        data?.error ||
+        `ดึงสถานะไม่สำเร็จ (${response.status})`
+    );
+  }
+
+  return data;
+}

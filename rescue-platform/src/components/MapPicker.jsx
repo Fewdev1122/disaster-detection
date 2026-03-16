@@ -359,11 +359,11 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
           map: hasSelectedLocation ? mapRef.current : null,
           center: initialCenter,
           radius: getRadiusMeters(),
-          strokeColor: "#ef4444",
+          strokeColor: "#2563eb",
           strokeOpacity: 1,
           strokeWeight: 2,
-          fillColor: "#fca5a5",
-          fillOpacity: 0.15,
+          fillColor: "#60a5fa",
+          fillOpacity: 0.12,
           clickable: false,
         });
 
@@ -560,12 +560,12 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
 
   return (
     <div className="flex h-full w-full flex-col">
-      <div className="relative h-[520px] w-full overflow-hidden rounded-[22px] border border-gray-200 bg-gray-100">
+      <div className="relative h-[520px] w-full overflow-hidden border border-slate-200 bg-slate-100">
         <div ref={mapContainerRef} className="h-full w-full" />
 
         <div className="absolute inset-x-0 top-0 z-[1000] p-3">
-          <div className="mx-auto max-w-lg">
-            <div className="rounded-xl border border-gray-200 bg-white shadow-md">
+          <div className="mx-auto max-w-xl">
+            <div className="border border-slate-200 bg-white">
               <input
                 type="text"
                 value={searchText}
@@ -580,12 +580,12 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
                   setTimeout(() => setShowSuggestions(false), 150);
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder="ค้นหาสถานที่, ถนน, อำเภอ, จังหวัด"
-                className="w-full rounded-xl border-0 bg-transparent px-4 py-3 text-sm text-gray-700 outline-none"
+                placeholder="ค้นหาสถานที่ ถนน อำเภอ หรือจังหวัด"
+                className="w-full border-0 bg-transparent px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400"
               />
 
               {showSuggestions && suggestions.length > 0 && (
-                <div className="max-h-72 overflow-auto border-t border-gray-100 py-1">
+                <div className="max-h-72 overflow-auto border-t border-slate-200 py-1">
                   {suggestions.map((item, index) => {
                     const prediction = item.placePrediction;
                     const main =
@@ -603,18 +603,18 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
                         onClick={() => handleSelectSuggestion(item)}
                         className={`block w-full px-4 py-3 text-left transition ${
                           index === activeIndex
-                            ? "bg-red-50"
-                            : "hover:bg-gray-50"
+                            ? "bg-slate-100"
+                            : "hover:bg-slate-50"
                         }`}
                       >
-                        <div className="text-sm font-medium text-gray-800">
+                        <div className="text-sm font-medium text-slate-800">
                           {main}
                         </div>
-                        {secondary && (
-                          <div className="mt-1 text-xs text-gray-500">
+                        {secondary ? (
+                          <div className="mt-1 text-xs text-slate-500">
                             {secondary}
                           </div>
-                        )}
+                        ) : null}
                       </button>
                     );
                   })}
@@ -624,20 +624,20 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
               {showSuggestions &&
                 !loadingSuggestions &&
                 searchText.trim() &&
-                suggestions.length === 0 && (
-                  <div className="border-t border-gray-100 px-4 py-3 text-sm text-gray-500">
+                suggestions.length === 0 ? (
+                  <div className="border-t border-slate-200 px-4 py-3 text-sm text-slate-500">
                     ไม่พบสถานที่ที่ใกล้เคียง
                   </div>
-                )}
+                ) : null}
             </div>
           </div>
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 left-4 z-[1000] flex flex-wrap gap-2">
+        <div className="absolute bottom-4 left-4 z-[1000] flex flex-wrap gap-2">
           <button
             type="button"
             onClick={handleUseCurrentLocation}
-            className="pointer-events-auto rounded-lg bg-white px-3 py-2 text-sm shadow transition hover:bg-gray-50"
+            className="border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
           >
             {loadingLocation ? "กำลังหา..." : "ใช้ตำแหน่งปัจจุบัน"}
           </button>
@@ -645,29 +645,29 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
           <button
             type="button"
             onClick={handleClear}
-            className="pointer-events-auto rounded-lg bg-white px-3 py-2 text-sm shadow transition hover:bg-gray-50"
+            className="border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
           >
             ล้างหมุด
           </button>
         </div>
 
-        {hasSelectedLocation && (
-          <div className="pointer-events-none absolute bottom-4 right-4 z-[1000] rounded-lg bg-white px-3 py-2 text-xs shadow">
+        {hasSelectedLocation ? (
+          <div className="absolute bottom-4 right-4 z-[1000] border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
             {value.lat.toFixed(6)}, {value.lng.toFixed(6)}
           </div>
-        )}
+        ) : null}
 
-        {(loadingAddress || loadingSuggestions) && (
-          <div className="absolute left-1/2 top-24 z-[1000] -translate-x-1/2 rounded-lg bg-white px-4 py-2 text-sm shadow">
+        {loadingAddress || loadingSuggestions ? (
+          <div className="absolute left-1/2 top-24 z-[1000] -translate-x-1/2 border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700">
             กำลังค้นหา...
           </div>
-        )}
+        ) : null}
 
-        {error && (
-          <div className="absolute left-1/2 top-24 z-[1000] -translate-x-1/2 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700 shadow">
+        {error ? (
+          <div className="absolute left-1/2 top-24 z-[1000] -translate-x-1/2 border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
             {error}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

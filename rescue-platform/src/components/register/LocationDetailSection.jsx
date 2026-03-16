@@ -4,6 +4,9 @@ import { PinIcon, CheckIcon } from "./icons";
 import { inputClass } from "../../constants/registerForm";
 
 export default function LocationDetailSection({ form, onChange }) {
+  const hasLocation =
+    typeof form.baseLat === "number" && typeof form.baseLng === "number";
+
   return (
     <SectionCard
       icon={<PinIcon />}
@@ -42,20 +45,31 @@ export default function LocationDetailSection({ form, onChange }) {
         />
       </Field>
 
-      {form.baseLat && form.baseLng ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+      {hasLocation ? (
+        <div className="border border-emerald-200 bg-emerald-50 px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className=" flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-white">
-              <CheckIcon size={14} />
+            <div className="flex h-5 w-5 items-center justify-center border border-emerald-600 bg-emerald-600 text-white">
+              <CheckIcon size={12} />
             </div>
-            <p className="text-sm font-semibold text-emerald-900">
-              เลือกตำแหน่งฐานเรียบร้อยแล้ว
-            </p>
+
+            <div>
+              <p className="text-sm font-semibold text-emerald-900">
+                เลือกตำแหน่งฐานเรียบร้อยแล้ว
+              </p>
+              <p className="mt-0.5 text-xs text-emerald-700">
+                ระบบพร้อมใช้พิกัดนี้สำหรับการกำหนดพื้นที่รับผิดชอบ
+              </p>
+            </div>
           </div>
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500">
-          ยังไม่ได้เลือกตำแหน่งบนแผนที่
+        <div className="border border-dashed border-slate-300 bg-slate-50 px-4 py-3">
+          <p className="text-sm font-medium text-slate-700">
+            ยังไม่ได้เลือกตำแหน่งบนแผนที่
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            กรุณาเลือกจุดบนแผนที่เพื่อให้ระบบระบุพิกัด จังหวัด และอำเภอ
+          </p>
         </div>
       )}
     </SectionCard>
