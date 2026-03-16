@@ -84,7 +84,7 @@ router.post("/register", async (req, res) => {
 router.get("/registration-status/:requestId", async (req, res) => {
   try {
     const { requestId } = req.params;
-    console.log("STATUS requestId:", requestId, "type:", typeof requestId);
+    console.log("STATUS requestId:", requestId);
 
     if (!requestId) {
       return res.status(400).json({
@@ -103,7 +103,7 @@ router.get("/registration-status/:requestId", async (req, res) => {
         connect_code_used,
         line_group_id,
         line_user_id,
-        review_note,
+        review_note
       `)
       .eq("id", requestId)
       .maybeSingle();
