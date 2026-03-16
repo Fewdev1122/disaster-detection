@@ -104,7 +104,6 @@ router.get("/registration-status/:requestId", async (req, res) => {
         line_group_id,
         line_user_id,
         review_note,
-        updated_at
       `)
       .eq("id", requestId)
       .maybeSingle();
