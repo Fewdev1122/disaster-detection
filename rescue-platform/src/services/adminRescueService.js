@@ -121,3 +121,20 @@ function mapUnitStatusFromApprovedRequest(item) {
   if (item.status === "rejected") return "inactive";
   return "inactive";
 }
+
+
+export async function autoRejectExpiredRescueRequests(expireDays = 3) {
+  const url = buildUrl("/admin/rescue-requests/auto-reject-expired");
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      expire_days: expireDays,
+    }),
+  });
+
+  return await parseJsonResponse(response, "ปฏิเสธอัตโนมัติไม่สำเร็จ");
+}

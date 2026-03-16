@@ -28,7 +28,7 @@ async function pushLineMessage(to, messages) {
     };
   }
 
-  // กันกรณีเอาเบอร์โทรมาใส่แทน line_user_id
+  // กันกรณีเอาค่าอื่นมาใส่แทน LINE user id
   if (!String(to).startsWith("U")) {
     return {
       ok: false,
@@ -81,8 +81,56 @@ async function pushLineMessage(to, messages) {
   };
 }
 
+async function autoRejectExpiredPendingRequests(expireDays = 3) {
+  const safeExpireDays = Number.isFinite(Number(expireDays))
+    ? Number(expireDays)
+    : 3;
+
+  const cutoff = new Date(
+    Date.now() - safeExpireDays * 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  const { data: expiredRequests, error: findError } = await supabase
+    .from("rescue_units")
+    .select("id, name, line_user_id, created_at, status")
+    .eq("status", "pending_review")
+    .is("line_user_id", null)
+    .lt("created_at", cutoff);
+
+  if (findError) {
+    throw new Error(findError.message);
+  }
+
+  if (!expiredRequests || expiredRequests.length === 0) {
+    return {
+      updatedCount: 0,
+      updatedIds: [],
+    };
+  }
+
+  const ids = expiredRequests.map((item) => item.id);
+
+  const { error: updateError } = await supabase
+    .from("rescue_units")
+    .update({
+      status: "rejected",
+      review_note: `ระบบปฏิเสธอัตโนมัติ เนื่องจากไม่ได้ผูก LINE ภายใน ${safeExpireDays} วัน`,
+    })
+    .in("id", ids);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  clearRescueCache();
+
+  return {
+    updatedCount: ids.length,
+    updatedIds: ids,
+  };
+}
+
 // ดึงรายการคำขอสมัครหน่วยกู้ภัย
-// ใช้ได้ทั้งทั้งหมด หรือ filter status เช่น ?status=pending_review
 router.get("/rescue-requests", async (req, res) => {
   try {
     const { status } = req.query;
@@ -144,7 +192,7 @@ router.get("/rescue-requests/:id", async (req, res) => {
 });
 
 // อนุมัติคำขอ
-// เงื่อนไข: ต้องผูก LINE แล้ว (line_user_id ต้องมี)
+// เงื่อนไข: ต้องผูก LINE แล้ว
 router.patch("/rescue-requests/:id/approve", async (req, res) => {
   try {
     const { id } = req.params;
@@ -242,6 +290,7 @@ router.patch("/rescue-requests/:id/approve", async (req, res) => {
 });
 
 // ปฏิเสธคำขอ
+// เงื่อนไข: ต้องผูก LINE แล้ว เพื่อให้ส่งแจ้งผลกลับได้แน่
 router.patch("/rescue-requests/:id/reject", async (req, res) => {
   try {
     const { id } = req.params;
@@ -260,6 +309,13 @@ router.patch("/rescue-requests/:id/reject", async (req, res) => {
     if (!existingUnit) {
       return res.status(404).json({
         message: "ไม่พบคำขอสมัครนี้",
+      });
+    }
+
+    if (!existingUnit.line_user_id) {
+      return res.status(400).json({
+        message:
+          "ยังไม่สามารถปฏิเสธได้ เพราะผู้สมัครยังไม่ได้ผูกบัญชี LINE กับระบบ",
       });
     }
 
@@ -287,26 +343,24 @@ router.patch("/rescue-requests/:id/reject", async (req, res) => {
       reason: "line_user_id missing",
     };
 
-    if (data?.line_user_id) {
-      try {
-        lineNotifyResult = await pushLineMessage(data.line_user_id, [
-          {
-            type: "text",
-            text:
-              `❌ คำขอสมัครหน่วยกู้ภัยของคุณยังไม่ผ่านการตรวจสอบ\n\n` +
-              `หน่วย: ${data.name || "-"}\n` +
-              `สถานะ: rejected\n` +
-              `หมายเหตุ: ${review_note}`,
-          },
-        ]);
-      } catch (lineErr) {
-        console.error("LINE PUSH ERROR AFTER REJECT:", lineErr);
-        lineNotifyResult = {
-          ok: false,
-          skipped: false,
-          reason: lineErr.message || "LINE push failed",
-        };
-      }
+    try {
+      lineNotifyResult = await pushLineMessage(data.line_user_id, [
+        {
+          type: "text",
+          text:
+            `❌ คำขอสมัครหน่วยกู้ภัยของคุณยังไม่ผ่านการตรวจสอบ\n\n` +
+            `หน่วย: ${data.name || "-"}\n` +
+            `สถานะ: rejected\n` +
+            `หมายเหตุ: ${review_note}`,
+        },
+      ]);
+    } catch (lineErr) {
+      console.error("LINE PUSH ERROR AFTER REJECT:", lineErr);
+      lineNotifyResult = {
+        ok: false,
+        skipped: false,
+        reason: lineErr.message || "LINE push failed",
+      };
     }
 
     return res.json({
@@ -318,6 +372,25 @@ router.patch("/rescue-requests/:id/reject", async (req, res) => {
     console.error("REJECT RESCUE REQUEST ERROR:", err);
     return res.status(500).json({
       message: "ปฏิเสธคำขอไม่สำเร็จ",
+      detail: err.message,
+    });
+  }
+});
+
+// ปฏิเสธอัตโนมัติรายการที่ค้าง pending_review และยังไม่ผูก LINE เกิน X วัน
+router.post("/rescue-requests/auto-reject-expired", async (req, res) => {
+  try {
+    const expireDays = Number(req.body?.expire_days || 3);
+    const result = await autoRejectExpiredPendingRequests(expireDays);
+
+    return res.json({
+      message: "ตรวจสอบและปฏิเสธอัตโนมัติสำเร็จ",
+      ...result,
+    });
+  } catch (err) {
+    console.error("AUTO REJECT EXPIRED REQUESTS ERROR:", err);
+    return res.status(500).json({
+      message: "ปฏิเสธอัตโนมัติไม่สำเร็จ",
       detail: err.message,
     });
   }

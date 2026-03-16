@@ -84,6 +84,7 @@ router.post("/register", async (req, res) => {
 router.get("/registration-status/:requestId", async (req, res) => {
   try {
     const { requestId } = req.params;
+    console.log("STATUS requestId:", requestId, "type:", typeof requestId);
 
     if (!requestId) {
       return res.status(400).json({
@@ -106,9 +107,20 @@ router.get("/registration-status/:requestId", async (req, res) => {
         updated_at
       `)
       .eq("id", requestId)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
+    console.log("STATUS data:", data);
+    console.log("STATUS error:", error);
+
+    if (error) {
+      return res.status(500).json({
+        success: false,
+        message: "ค้นหาสถานะไม่สำเร็จ",
+        detail: error.message,
+      });
+    }
+
+    if (!data) {
       return res.status(404).json({
         success: false,
         message: "ไม่พบคำขอสมัครนี้",

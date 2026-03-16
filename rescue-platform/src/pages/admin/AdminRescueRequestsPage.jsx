@@ -3,6 +3,7 @@ import AdminLayout from "../../components/admin/AdminLayout";
 import RejectRequestModal from "../../components/admin/RejectRequestModal";
 import {
   approveRescueRequest,
+  autoRejectExpiredRescueRequests,
   getRescueRequests,
   rejectRescueRequest,
 } from "../../services/adminRescueService";
@@ -88,6 +89,7 @@ export default function AdminRescueRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [error, setError] = useState("");
+  const [autoRejectLoading, setAutoRejectLoading] = useState(false);
 
   const loadRequests = async (status = statusFilter) => {
     try {
@@ -173,6 +175,24 @@ export default function AdminRescueRequestsPage() {
       setActionLoadingId(null);
     }
   };
+  const handleAutoRejectExpired = async () => {
+    try {
+      setAutoRejectLoading(true);
+
+      const result = await autoRejectExpiredRescueRequests(3);
+
+      alert(
+        `ตรวจสอบสำเร็จ ปฏิเสธอัตโนมัติ ${result?.updatedCount || 0} รายการ`
+      );
+
+      await loadRequests(statusFilter);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "ปฏิเสธอัตโนมัติไม่สำเร็จ");
+    } finally {
+      setAutoRejectLoading(false);
+    }
+  };
 
   return (
     <AdminLayout>
@@ -197,6 +217,14 @@ export default function AdminRescueRequestsPage() {
                   placeholder="ค้นหาชื่อหน่วย, ผู้ประสานงาน, จังหวัด..."
                   className="border border-slate-300 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-400"
                 />
+                <button
+                  type="button"
+                  onClick={handleAutoRejectExpired}
+                  disabled={autoRejectLoading}
+                  className="border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {autoRejectLoading ? "กำลังตรวจสอบ..." : "ปฏิเสธอัตโนมัติรายการค้าง"}
+                </button>
                 <button
                   type="button"
                   onClick={() => loadRequests(statusFilter)}
