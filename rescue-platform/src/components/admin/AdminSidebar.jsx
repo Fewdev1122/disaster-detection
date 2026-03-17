@@ -6,14 +6,9 @@ const primaryMenus = [
   { label: "Rescue Units", to: "/admin/units" },
   { label: "Incidents", to: "/admin/incidents", badge: 3 },
   { label: "Live Map", to: "/admin/live-map" },
-  { label: "Reports", to: "/admin/reports" },
+
 ];
 
-const systemMenus = [
-  { label: "Admins", to: "/admin/admins" },
-  { label: "Settings", to: "/admin/settings" },
-  { label: "Logs", to: "/admin/logs" },
-];
 
 function SidebarLink({ item }) {
   return (

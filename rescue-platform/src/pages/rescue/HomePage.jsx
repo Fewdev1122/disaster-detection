@@ -64,12 +64,7 @@ export default function HomePage() {
                 เริ่มสมัครหน่วยกู้ภัย
               </Link>
 
-              <Link
-                to="/register/pending"
-                className="inline-flex h-10 items-center justify-center border border-slate-300 bg-white px-5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                ตรวจสอบสถานะคำขอ
-              </Link>
+            
             </div>
           </div>
         </div>

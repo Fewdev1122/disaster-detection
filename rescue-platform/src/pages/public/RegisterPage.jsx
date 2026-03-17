@@ -283,22 +283,7 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
-                {hasFormData(form) ? (
-                  <div className="border border-amber-200 bg-amber-50 px-4 py-3">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-sm text-amber-800">
-                        ระบบบันทึกแบบร่างอัตโนมัติแล้ว
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handleResetDraft}
-                        className="text-sm font-medium text-amber-900 hover:underline"
-                      >
-                        ล้างข้อมูล
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
+               
 
                 {errors.location || submitError ? (
                   <div className="border border-rose-200 bg-rose-50 px-4 py-3">
