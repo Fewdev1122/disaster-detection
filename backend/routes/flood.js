@@ -5,34 +5,23 @@ const router = express.Router();
 
 router.get("/test", async (req, res) => {
   try {
-    const lat = Number(req.query.lat);
-    const lng = Number(req.query.lng);
-
-    if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      return res.status(400).json({
-        success: false,
-        message: "กรุณาส่ง lat และ lng",
-      });
-    }
+    // ถ้าไม่มี lat lng ให้ใช้ค่า default
+    const lat = req.query.lat || 19.9105;
+    const lng = req.query.lng || 99.8406;
 
     const data = await testFloodApi(lat, lng);
 
     res.json({
       success: true,
-      input: { lat, lng },
-      data,
+      location: { lat, lng },
+      data
     });
-  } catch (error) {
-    console.error(
-      "Flood API error:",
-      error.response?.status,
-      error.response?.data || error.message
-    );
 
+  } catch (error) {
     res.status(500).json({
       success: false,
-      message: "เชื่อม Flood API ไม่สำเร็จ",
-      detail: error.response?.data || error.message,
+      message: "Flood API error",
+      detail: error.message
     });
   }
 });
