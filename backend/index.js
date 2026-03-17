@@ -5,7 +5,7 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-
+import earthquakeRoutes from "./routes/earthquake.js";
 import rescueRouter from "./routes/rescue.js";
 import hotspotRouter from "./routes/hotspot.js";
 import webhookRouter from "./routes/webhook.js";
@@ -44,7 +44,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 
-// สำคัญ: webhook ต้องมาก่อน express.json()
+
 app.use("/webhook", webhookRouter);
 
 app.use(express.json({ limit: "20mb" }));
@@ -74,6 +74,7 @@ app.use("/api/air", airRoute);
 app.use("/api/admin", adminRescueRouter);
 app.use("/api/rescue", rescueRouter);
 app.use("/api/incidents", incidentsRouter);
+app.use("/api/earthquake", earthquakeRoutes);
 
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err.message);
