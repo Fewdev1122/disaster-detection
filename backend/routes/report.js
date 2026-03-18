@@ -39,7 +39,6 @@ function getExtensionFromMime(mimeType = "") {
 
 async function safeDelete(filePath) {
   if (!filePath) return;
-
   try {
     await deleteTempImage(filePath);
   } catch (err) {
@@ -75,40 +74,49 @@ router.post("/", async (req, res) => {
     const fileExt = getExtensionFromMime(mimeType);
     console.log("parseBase64:", Date.now() - parseStart, "ms");
 
-    const metadataStart = Date.now();
-    const metadata = await readImageMetadata(imageBuffer);
-    console.log("readImageMetadata:", Date.now() - metadataStart, "ms");
+    const metadataPromise = (async () => {
+      const started = Date.now();
+      const metadata = await readImageMetadata(imageBuffer);
+      console.log("readImageMetadata:", Date.now() - started, "ms");
+      return metadata;
+    })();
 
-    let prediction = null;
-
-    try {
-      const writeTempStart = Date.now();
+    const predictionPromise = (async () => {
+      const writeStart = Date.now();
       tempOriginalPath = path.join("/tmp", `report-${Date.now()}${fileExt}`);
       await fs.writeFile(tempOriginalPath, imageBuffer);
-      console.log("writeTempFile:", Date.now() - writeTempStart, "ms");
+      console.log("writeTempFile:", Date.now() - writeStart, "ms");
 
       const resizeStart = Date.now();
       aiImagePath = await resizeImageForAI(tempOriginalPath);
       console.log("resizeImageForAI:", Date.now() - resizeStart, "ms");
 
       const predictStart = Date.now();
-      prediction = await predictDisaster(aiImagePath);
+      const prediction = await predictDisaster(aiImagePath);
       console.log("predictDisaster:", Date.now() - predictStart, "ms");
+      return prediction;
+    })();
+
+    let metadata;
+    let prediction;
+
+    try {
+      [metadata, prediction] = await Promise.all([metadataPromise, predictionPromise]);
       console.log("Prediction:", prediction);
-    } catch (aiErr) {
-      console.error("AI prediction error:", aiErr.response?.data || aiErr.message);
+    } catch (err) {
+      console.error("AI / metadata error:", err.response?.data || err.message);
 
       return res.status(500).json({
         error: "AI prediction failed",
-        details: aiErr.response?.data || aiErr.message,
+        details: err.response?.data || err.message,
       });
     } finally {
       await safeDelete(aiImagePath);
       await safeDelete(tempOriginalPath);
     }
 
-    const exifPhotoLat = photo_lat ?? metadata.latitude ?? null;
-    const exifPhotoLng = photo_lng ?? metadata.longitude ?? null;
+    const exifPhotoLat = photo_lat ?? metadata?.latitude ?? null;
+    const exifPhotoLng = photo_lng ?? metadata?.longitude ?? null;
 
     const reporterLat = current_lat ?? lat ?? null;
     const reporterLng = current_lng ?? lng ?? null;
@@ -127,12 +135,10 @@ router.post("/", async (req, res) => {
       finalLocationSource = location_source || "device_gps";
     }
 
-    const uploadStart = Date.now();
-    const { imageUrl } = await saveBase64Image(image, "report");
-    console.log("saveBase64Image:", Date.now() - uploadStart, "ms");
-    console.log("imageUrl:", imageUrl);
-
     if (!prediction || !shouldSendAlert(prediction)) {
+      const uploadStart = Date.now();
+      const { imageUrl } = await saveBase64Image(image, "report");
+      console.log("saveBase64Image:", Date.now() - uploadStart, "ms");
       console.log("TOTAL:", Date.now() - totalStart, "ms");
 
       return res.json({
@@ -154,7 +160,6 @@ router.post("/", async (req, res) => {
       return res.status(400).json({
         error: "ไม่พบพิกัดเหตุการณ์",
         prediction,
-        image_url: imageUrl,
       });
     }
 
@@ -168,7 +173,6 @@ router.post("/", async (req, res) => {
       return res.status(404).json({
         error: "ไม่พบหน่วยกู้ภัยที่ครอบคลุมพื้นที่นี้",
         prediction,
-        image_url: imageUrl,
         event_lat: incidentLat,
         event_lng: incidentLng,
         photo_lat: exifPhotoLat,
@@ -179,6 +183,27 @@ router.post("/", async (req, res) => {
       });
     }
 
+    const uploadStart = Date.now();
+    const { imageUrl } = await saveBase64Image(image, "report");
+    console.log("saveBase64Image:", Date.now() - uploadStart, "ms");
+
+    const responsePayload = {
+      success: true,
+      prediction,
+      image_url: imageUrl,
+      nearest_rescue: nearestRescue,
+      event_lat: incidentLat,
+      event_lng: incidentLng,
+      photo_lat: exifPhotoLat,
+      photo_lng: exifPhotoLng,
+      reporter_lat: reporterLat,
+      reporter_lng: reporterLng,
+      location_source: finalLocationSource,
+    };
+
+    console.log("TOTAL:", Date.now() - totalStart, "ms");
+    res.json(responsePayload);
+
     const baseText = buildReportText({
       title: "🚨 แจ้งเหตุภัยพิบัติ",
       reportTimestamp: Date.now(),
@@ -186,7 +211,7 @@ router.post("/", async (req, res) => {
       reporterLng,
       photoLat: exifPhotoLat,
       photoLng: exifPhotoLng,
-      photoDate: metadata.photoDate,
+      photoDate: metadata?.photoDate,
       eventLat: incidentLat,
       eventLng: incidentLng,
       locationSource: finalLocationSource,
@@ -222,54 +247,49 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const incidentPayload = {
-      sourceType: "web_report",
-      imageUrl,
-      disasterType: prediction?.class || null,
-      confidence: prediction?.confidence ?? null,
-      eventLat: incidentLat,
-      eventLng: incidentLng,
-      photoLat: exifPhotoLat,
-      photoLng: exifPhotoLng,
-      rescueUnitId: nearestRescue.id,
-      rawPrediction: {
-        ...prediction,
-        location_source: finalLocationSource,
-        reporter_lat: reporterLat,
-        reporter_lng: reporterLng,
-      },
-    };
+    const bgStart = Date.now();
 
-    const saveIncidentStart = Date.now();
-    const savedIncident = await saveIncident(incidentPayload);
-    console.log("saveIncident:", Date.now() - saveIncidentStart, "ms");
-    console.log("Incident saved:", savedIncident);
+    Promise.allSettled([
+      (async () => {
+        const started = Date.now();
+        await saveIncident({
+          sourceType: "web_report",
+          imageUrl,
+          disasterType: prediction?.class || null,
+          confidence: prediction?.confidence ?? null,
+          eventLat: incidentLat,
+          eventLng: incidentLng,
+          photoLat: exifPhotoLat,
+          photoLng: exifPhotoLng,
+          rescueUnitId: nearestRescue.id,
+          rawPrediction: {
+            ...prediction,
+            location_source: finalLocationSource,
+            reporter_lat: reporterLat,
+            reporter_lng: reporterLng,
+          },
+        });
+        console.log("saveIncident:", Date.now() - started, "ms");
+      })(),
 
-    const responsePayload = {
-      success: true,
-      prediction,
-      image_url: imageUrl,
-      nearest_rescue: nearestRescue,
-      event_lat: incidentLat,
-      event_lng: incidentLng,
-      photo_lat: exifPhotoLat,
-      photo_lng: exifPhotoLng,
-      reporter_lat: reporterLat,
-      reporter_lng: reporterLng,
-      location_source: finalLocationSource,
-    };
+      (async () => {
+        const started = Date.now();
+        await pushToRescueGroup(nearestRescue.line_group_id, messages);
+        console.log("pushToRescueGroup:", Date.now() - started, "ms");
+      })(),
+    ]).then((results) => {
+      const [saveResult, pushResult] = results;
 
-    console.log("TOTAL:", Date.now() - totalStart, "ms");
-    res.json(responsePayload);
+      if (saveResult.status === "rejected") {
+        console.error("saveIncident error:", saveResult.reason?.message || saveResult.reason);
+      }
 
-    const pushStart = Date.now();
-    pushToRescueGroup(nearestRescue.line_group_id, messages)
-      .then(() => {
-        console.log("pushToRescueGroup:", Date.now() - pushStart, "ms");
-      })
-      .catch((err) => {
-        console.error("LINE push error:", err.message);
-      });
+      if (pushResult.status === "rejected") {
+        console.error("LINE push error:", pushResult.reason?.message || pushResult.reason);
+      }
+
+      console.log("backgroundTasks:", Date.now() - bgStart, "ms");
+    });
   } catch (err) {
     console.error("FULL ERROR:", err.response?.data || err.message);
 
