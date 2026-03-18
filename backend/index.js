@@ -14,6 +14,8 @@ import airRoute from "./routes/air.js";
 import adminRescueRouter from "./routes/adminRescue.js";
 import incidentsRouter from "./routes/incidents.js";
 import floodRoutes from "./routes/flood.js";
+import rainRoutes from "./routes/rain.js";
+
 dotenv.config({ path: path.resolve(process.cwd(), "../.env") });
 
 const __filename = fileURLToPath(import.meta.url);
@@ -76,6 +78,7 @@ app.use("/api/rescue", rescueRouter);
 app.use("/api/incidents", incidentsRouter);
 app.use("/api/earthquake", earthquakeRoutes);
 app.use("/api/flood", floodRoutes);
+app.use("/api/rain", rainRoutes);
 
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err.message);
