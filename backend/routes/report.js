@@ -1,8 +1,8 @@
 import express from "express";
-import fs from "fs/promises";
+import fs from "fs";
 import path from "path";
 import { resizeImageForAI, deleteTempImage } from "../utils/resize.js";
-import { saveBufferImage, readImageMetadata } from "../utils/image.js";
+import { saveBase64Image, readImageMetadata } from "../utils/image.js";
 import {
   buildPredictionText,
   buildReportText,
@@ -17,9 +17,7 @@ import { saveIncident } from "../services/incidentService.js";
 const router = express.Router();
 
 function extractBase64Parts(base64Image) {
-  const matches = String(base64Image).match(
-    /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/
-  );
+  const matches = base64Image.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
 
   if (!matches) {
     throw new Error("รูปแบบ base64 ไม่ถูกต้อง");
@@ -32,27 +30,15 @@ function extractBase64Parts(base64Image) {
 }
 
 function getExtensionFromMime(mimeType = "") {
-  const type = String(mimeType).toLowerCase();
+  const type = mimeType.toLowerCase();
 
   if (type === "image/png") return ".png";
   if (type === "image/webp") return ".webp";
   return ".jpg";
 }
 
-async function safeDelete(filePath) {
-  if (!filePath) return;
-  try {
-    await deleteTempImage(filePath);
-  } catch (err) {
-    console.error("deleteTempImage error:", err.message);
-  }
-}
-
 router.post("/", async (req, res) => {
-  const totalStart = Date.now();
-
-  let tempOriginalPath = null;
-  let aiImagePath = null;
+  const t0 = Date.now();
 
   try {
     const {
@@ -70,64 +56,59 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Image missing" });
     }
 
-    const parseStart = Date.now();
     const { mimeType, base64Data } = extractBase64Parts(image);
     const imageBuffer = Buffer.from(base64Data, "base64");
     const fileExt = getExtensionFromMime(mimeType);
-    console.log("parseBase64:", Date.now() - parseStart, "ms");
 
-    const metadataPromise = (async () => {
-      const started = Date.now();
-      const metadata = await readImageMetadata(imageBuffer);
-      console.log("readImageMetadata:", Date.now() - started, "ms");
-      return metadata;
-    })();
+    const t2 = Date.now();
+    const metadata = await readImageMetadata(imageBuffer);
+    console.log("readImageMetadata:", Date.now() - t2, "ms");
 
-    const predictionPromise = (async () => {
-      const writeStart = Date.now();
-      tempOriginalPath = path.join("/tmp", `report-${Date.now()}${fileExt}`);
-      await fs.writeFile(tempOriginalPath, imageBuffer);
-      console.log("writeTempFile:", Date.now() - writeStart, "ms");
-
-      const resizeStart = Date.now();
-      const resized = await resizeImageForAI(tempOriginalPath);
-      aiImagePath = resized.path;
-      console.log("resizeImageForAI:", Date.now() - resizeStart, "ms");
-
-      const predictStart = Date.now();
-      const prediction = await predictDisaster(aiImagePath);
-      console.log("predictDisaster:", Date.now() - predictStart, "ms");
-
-      return {
-        prediction,
-        resizedBuffer: resized.buffer,
-      };
-    })();
-
-    let metadata;
-    let prediction;
-    let resizedBuffer;
+    let prediction = null;
+    let aiImagePath = null;
 
     try {
-      const [metadataResult, predictionResult] = await Promise.all([
-        metadataPromise,
-        predictionPromise,
-      ]);
+      const t3 = Date.now();
 
-      metadata = metadataResult;
-      prediction = predictionResult.prediction;
-      resizedBuffer = predictionResult.resizedBuffer;
+      // resizeImageForAI เดิมน่าจะรับ path local
+      // เลยสร้าง temp file ชั่วคราวเพื่อใช้กับ flow เดิม
+      const tempOriginalPath = path.join("/tmp", `report-${Date.now()}${fileExt}`);
+      fs.writeFileSync(tempOriginalPath, imageBuffer);
 
+      aiImagePath = await resizeImageForAI(tempOriginalPath);
+      console.log("resizeImageForAI:", Date.now() - t3, "ms");
+
+      const t4 = Date.now();
+      prediction = await predictDisaster(aiImagePath);
+      console.log("predictDisaster:", Date.now() - t4, "ms");
       console.log("Prediction:", prediction);
-    } finally {
-      await safeDelete(aiImagePath);
-      await safeDelete(tempOriginalPath);
-      aiImagePath = null;
-      tempOriginalPath = null;
+
+      await deleteTempImage(aiImagePath);
+      await deleteTempImage(tempOriginalPath);
+    } catch (aiErr) {
+      console.error(
+        "AI prediction error:",
+        aiErr.response?.data || aiErr.message
+      );
+
+      if (aiImagePath) {
+        await deleteTempImage(aiImagePath);
+      }
+
+      return res.status(500).json({
+        error: "AI prediction failed",
+        details: aiErr.response?.data || aiErr.message,
+      });
     }
 
-    const exifPhotoLat = photo_lat ?? metadata?.latitude ?? null;
-    const exifPhotoLng = photo_lng ?? metadata?.longitude ?? null;
+    // -----------------------------
+    // เลือกพิกัดเหตุการณ์
+    // 1) พิกัดจาก frontend ที่อ่านจากรูป
+    // 2) พิกัด EXIF ที่ backend อ่านเอง
+    // 3) พิกัดปัจจุบันของเครื่อง
+    // -----------------------------
+    const exifPhotoLat = photo_lat ?? metadata.latitude ?? null;
+    const exifPhotoLng = photo_lng ?? metadata.longitude ?? null;
 
     const reporterLat = current_lat ?? lat ?? null;
     const reporterLng = current_lng ?? lng ?? null;
@@ -146,16 +127,16 @@ router.post("/", async (req, res) => {
       finalLocationSource = location_source || "device_gps";
     }
 
+    // อัปโหลดขึ้น Supabase Storage
+    const t1 = Date.now();
+    const { fileName, imageUrl } = await saveBase64Image(image, "report");
+    console.log("saveBase64Image (Supabase Storage):", Date.now() - t1, "ms");
+    console.log("imageUrl:", imageUrl);
+
     if (!prediction || !shouldSendAlert(prediction)) {
-      const uploadStart = Date.now();
-      const { imageUrl } = await saveBufferImage(
-        resizedBuffer || imageBuffer,
-        "report",
-        ".jpg",
-        "image/jpeg"
-      );
-      console.log("saveBufferImage:", Date.now() - uploadStart, "ms");
-      console.log("TOTAL:", Date.now() - totalStart, "ms");
+      // จะเก็บ incident normal หรือไม่แล้วแต่คุณ
+      // ตอนนี้คง behavior เดิม คือไม่ส่งแจ้งเตือน
+      console.log("TOTAL:", Date.now() - t0, "ms");
 
       return res.json({
         success: true,
@@ -176,19 +157,21 @@ router.post("/", async (req, res) => {
       return res.status(400).json({
         error: "ไม่พบพิกัดเหตุการณ์",
         prediction,
+        image_url: imageUrl,
       });
     }
 
-    const nearestStart = Date.now();
+    const t5 = Date.now();
     const nearestRescue = await findNearestRescue(incidentLat, incidentLng);
-    console.log("findNearestRescue:", Date.now() - nearestStart, "ms");
+    console.log("findNearestRescue:", Date.now() - t5, "ms");
 
     if (!nearestRescue) {
-      console.log("TOTAL:", Date.now() - totalStart, "ms");
+      console.log("TOTAL:", Date.now() - t0, "ms");
 
       return res.status(404).json({
         error: "ไม่พบหน่วยกู้ภัยที่ครอบคลุมพื้นที่นี้",
         prediction,
+        image_url: imageUrl,
         event_lat: incidentLat,
         event_lng: incidentLng,
         photo_lat: exifPhotoLat,
@@ -199,40 +182,18 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const uploadStart = Date.now();
-    const { imageUrl } = await saveBufferImage(
-      resizedBuffer || imageBuffer,
-      "report",
-      ".jpg",
-      "image/jpeg"
-    );
-    console.log("saveBufferImage:", Date.now() - uploadStart, "ms");
-
-    const responsePayload = {
-      success: true,
-      prediction,
-      image_url: imageUrl,
-      nearest_rescue: nearestRescue,
-      event_lat: incidentLat,
-      event_lng: incidentLng,
-      photo_lat: exifPhotoLat,
-      photo_lng: exifPhotoLng,
-      reporter_lat: reporterLat,
-      reporter_lng: reporterLng,
-      location_source: finalLocationSource,
-    };
-
-    console.log("TOTAL:", Date.now() - totalStart, "ms");
-    res.json(responsePayload);
-
     const baseText = buildReportText({
       title: "🚨 แจ้งเหตุภัยพิบัติ",
       reportTimestamp: Date.now(),
+
       reporterLat,
       reporterLng,
+
       photoLat: exifPhotoLat,
       photoLng: exifPhotoLng,
-      photoDate: metadata?.photoDate,
+
+      photoDate: metadata.photoDate,
+
       eventLat: incidentLat,
       eventLng: incidentLng,
       locationSource: finalLocationSource,
@@ -268,54 +229,54 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const bgStart = Date.now();
+    const t6 = Date.now();
+    pushToRescueGroup(nearestRescue.line_group_id, messages)
+      .then(() => {
+        console.log("pushToRescueGroup:", Date.now() - t6, "ms");
+      })
+      .catch((err) => {
+        console.error("LINE push error:", err.message);
+      });
 
-    Promise.allSettled([
-      (async () => {
-        const started = Date.now();
-        await saveIncident({
-          sourceType: "web_report",
-          imageUrl,
-          disasterType: prediction?.class || null,
-          confidence: prediction?.confidence ?? null,
-          eventLat: incidentLat,
-          eventLng: incidentLng,
-          photoLat: exifPhotoLat,
-          photoLng: exifPhotoLng,
-          rescueUnitId: nearestRescue.id,
-          rawPrediction: {
-            ...prediction,
-            location_source: finalLocationSource,
-            reporter_lat: reporterLat,
-            reporter_lng: reporterLng,
-          },
-        });
-        console.log("saveIncident:", Date.now() - started, "ms");
-      })(),
+    const t7 = Date.now();
+    await saveIncident({
+      sourceType: "web_report",
+      imageUrl,
+      disasterType: prediction?.class || null,
+      confidence: prediction?.confidence ?? null,
+      eventLat: incidentLat,
+      eventLng: incidentLng,
+      photoLat: exifPhotoLat,
+      photoLng: exifPhotoLng,
+      rescueUnitId: nearestRescue.id,
+      rawPrediction: {
+        ...prediction,
+        location_source: finalLocationSource,
+        reporter_lat: reporterLat,
+        reporter_lng: reporterLng,
+      },
+    })
+      .then(() => {
+        console.log("saveIncident:", Date.now() - t7, "ms");
+      })
+      .catch((err) => {
+        console.error("saveIncident error:", err.message);
+      });
 
-      (async () => {
-        const started = Date.now();
-        await pushToRescueGroup(nearestRescue.line_group_id, messages);
-        console.log("pushToRescueGroup:", Date.now() - started, "ms");
-      })(),
-    ]).then((results) => {
-      const [saveResult, pushResult] = results;
+    console.log("TOTAL:", Date.now() - t0, "ms");
 
-      if (saveResult.status === "rejected") {
-        console.error(
-          "saveIncident error:",
-          saveResult.reason?.message || saveResult.reason
-        );
-      }
-
-      if (pushResult.status === "rejected") {
-        console.error(
-          "LINE push error:",
-          pushResult.reason?.message || pushResult.reason
-        );
-      }
-
-      console.log("backgroundTasks:", Date.now() - bgStart, "ms");
+    return res.json({
+      success: true,
+      prediction,
+      image_url: imageUrl,
+      nearest_rescue: nearestRescue,
+      event_lat: incidentLat,
+      event_lng: incidentLng,
+      photo_lat: exifPhotoLat,
+      photo_lng: exifPhotoLng,
+      reporter_lat: reporterLat,
+      reporter_lng: reporterLng,
+      location_source: finalLocationSource,
     });
   } catch (err) {
     console.error("FULL ERROR:", err.response?.data || err.message);

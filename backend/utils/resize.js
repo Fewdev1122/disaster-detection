@@ -7,7 +7,7 @@ export async function resizeImageForAI(inputPath) {
   const base = inputPath.slice(0, -ext.length);
   const outputPath = `${base}-ai.jpg`;
 
-  const buffer = await sharp(inputPath)
+  await sharp(inputPath)
     .rotate()
     .resize({
       width: 640,
@@ -19,14 +19,9 @@ export async function resizeImageForAI(inputPath) {
       quality: 80,
       mozjpeg: true,
     })
-    .toBuffer();
+    .toFile(outputPath);
 
-  await fs.writeFile(outputPath, buffer);
-
-  return {
-    path: outputPath,
-    buffer,
-  };
+  return outputPath;
 }
 
 export async function deleteTempImage(filePath) {
