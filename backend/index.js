@@ -15,6 +15,9 @@ import adminRescueRouter from "./routes/adminRescue.js";
 import incidentsRouter from "./routes/incidents.js";
 import floodRoutes from "./routes/flood.js";
 import rainRoutes from "./routes/rain.js";
+import cron from "node-cron";
+import { saveHotspotsToDatabase } from "./services/hotspotService.js";
+
 
 dotenv.config({ path: path.resolve(process.cwd(), "../.env") });
 
@@ -79,6 +82,17 @@ app.use("/api/incidents", incidentsRouter);
 app.use("/api/earthquake", earthquakeRoutes);
 app.use("/api/flood", floodRoutes);
 app.use("/api/rain", rainRoutes);
+
+
+cron.schedule("*/10 * * * *", async () => {
+  try {
+    console.log("Sync hotspots...");
+    const result = await saveHotspotsToDatabase();
+    console.log("Hotspots synced:", result.inserted);
+  } catch (error) {
+    console.error("Hotspot sync error:", error.message);
+  }
+});
 
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err.message);
