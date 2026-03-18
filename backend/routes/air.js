@@ -1,47 +1,63 @@
 import express from "express";
-import axios from "axios";
+import {
+  getAirQualityPhayao,
+  saveAirQualityToDatabase,
+  getSavedAirQuality,
+} from "../services/airService.js";
 
 const router = express.Router();
 
-const AIR4THAI_URL = "http://air4thai.pcd.go.th/services/getNewAQI_JSON.php";
-
-router.get("/", async (req, res) => {
+router.get("/live", async (req, res) => {
   try {
-    const response = await axios.get(AIR4THAI_URL, {
-      timeout: 10000,
-      headers: {
-        Accept: "application/json",
-      },
-    });
+    const data = await getAirQualityPhayao();
 
-    res.json(response.data);
-  } catch (error) {
-    console.error("Air4Thai fetch error:", error.message);
+    res.json({
+      success: true,
+      count: data.length,
+      data,
+    });
+  } catch (err) {
     res.status(500).json({
-      error: "Failed to fetch Air4Thai data",
-      detail: error.message,
+      success: false,
+      message: "ดึงข้อมูลคุณภาพอากาศไม่สำเร็จ",
+      detail: err.message,
     });
   }
 });
 
-router.get("/station/:stationID", async (req, res) => {
+router.post("/sync", async (req, res) => {
   try {
-    const { stationID } = req.params;
+    const result = await saveAirQualityToDatabase();
 
-    const response = await axios.get(AIR4THAI_URL, {
-      timeout: 10000,
-      params: { stationID },
-      headers: {
-        Accept: "application/json",
-      },
+    res.json({
+      success: true,
+      message: "sync air quality สำเร็จ",
+      inserted: result.inserted,
+      data: result.data,
     });
-
-    res.json(response.data);
-  } catch (error) {
-    console.error("Air4Thai station fetch error:", error.message);
+  } catch (err) {
     res.status(500).json({
-      error: "Failed to fetch station data",
-      detail: error.message,
+      success: false,
+      message: "sync air quality ไม่สำเร็จ",
+      detail: err.message,
+    });
+  }
+});
+
+router.get("/", async (req, res) => {
+  try {
+    const data = await getSavedAirQuality();
+
+    res.json({
+      success: true,
+      count: data.length,
+      data,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "ดึงข้อมูลคุณภาพอากาศจากฐานข้อมูลไม่สำเร็จ",
+      detail: err.message,
     });
   }
 });
