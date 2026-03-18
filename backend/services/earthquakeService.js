@@ -9,7 +9,7 @@ const USGS_API =
   lat: -10 ถึง 60
   lng: 60 ถึง 150
 */
-function isInAsia(lat, lng) {
+function isInSEA(lat, lng) {
   const latNum = parseFloat(lat);
   const lngNum = parseFloat(lng);
 
@@ -17,12 +17,11 @@ function isInAsia(lat, lng) {
     !Number.isNaN(latNum) &&
     !Number.isNaN(lngNum) &&
     latNum >= -10 &&
-    latNum <= 60 &&
-    lngNum >= 60 &&
-    lngNum <= 150
+    latNum <= 25 &&
+    lngNum >= 90 &&
+    lngNum <= 130
   );
 }
-
 function mapEarthquakeFeature(feature) {
   return {
     id: feature.id,
