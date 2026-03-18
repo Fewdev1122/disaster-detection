@@ -6,7 +6,7 @@ import supabase from "../config/supabase.js";
 const BUCKET_NAME = "incident-images";
 
 function getExtensionFromMime(mimeType = "") {
-  const type = mimeType.toLowerCase();
+  const type = String(mimeType).toLowerCase();
 
   if (type === "image/png") return ".png";
   if (type === "image/webp") return ".webp";
@@ -17,7 +17,7 @@ function getExtensionFromMime(mimeType = "") {
 }
 
 function getContentTypeFromExt(ext = ".jpg") {
-  const value = ext.toLowerCase();
+  const value = String(ext).toLowerCase();
 
   if (value === ".png") return "image/png";
   if (value === ".webp") return "image/webp";
@@ -29,7 +29,26 @@ function buildFileName(prefix = "report", ext = ".jpg") {
   return `${safePrefix}-${Date.now()}${ext}`;
 }
 
+function extractBase64Parts(base64Image) {
+  const matches = String(base64Image).match(
+    /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/
+  );
+
+  if (!matches) {
+    throw new Error("รูปแบบ base64 ไม่ถูกต้อง");
+  }
+
+  return {
+    mimeType: matches[1],
+    base64Data: matches[2],
+  };
+}
+
 async function uploadBufferToSupabase(buffer, fileName, contentType) {
+  if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
+    throw new Error("Image buffer is required");
+  }
+
   const filePathInBucket = fileName;
 
   const { error: uploadError } = await supabase.storage
@@ -40,7 +59,9 @@ async function uploadBufferToSupabase(buffer, fileName, contentType) {
     });
 
   if (uploadError) {
-    throw new Error(`อัปโหลดรูปไป Supabase Storage ไม่สำเร็จ: ${uploadError.message}`);
+    throw new Error(
+      `อัปโหลดรูปไป Supabase Storage ไม่สำเร็จ: ${uploadError.message}`
+    );
   }
 
   const { data } = supabase.storage
@@ -54,16 +75,18 @@ async function uploadBufferToSupabase(buffer, fileName, contentType) {
   };
 }
 
-export async function saveBufferImage(buffer, prefix = "line", ext = ".jpg") {
-  if (!buffer) {
-    throw new Error("Image buffer is required");
-  }
-
+export async function saveBufferImage(
+  buffer,
+  prefix = "line",
+  ext = ".jpg",
+  contentType
+) {
   const normalizedExt = ext.startsWith(".") ? ext : `.${ext}`;
-  const contentType = getContentTypeFromExt(normalizedExt);
+  const finalContentType =
+    contentType || getContentTypeFromExt(normalizedExt);
   const fileName = buildFileName(prefix, normalizedExt);
 
-  return uploadBufferToSupabase(buffer, fileName, contentType);
+  return uploadBufferToSupabase(buffer, fileName, finalContentType);
 }
 
 export async function saveBase64Image(base64Image, prefix = "report") {
@@ -71,20 +94,11 @@ export async function saveBase64Image(base64Image, prefix = "report") {
     throw new Error("Base64 image is required");
   }
 
-  const matches = base64Image.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-
-  if (!matches) {
-    throw new Error("รูปแบบ base64 ไม่ถูกต้อง");
-  }
-
-  const mimeType = matches[1];
-  const base64Data = matches[2];
-
+  const { mimeType, base64Data } = extractBase64Parts(base64Image);
   const ext = getExtensionFromMime(mimeType);
-  const fileName = buildFileName(prefix, ext);
   const buffer = Buffer.from(base64Data, "base64");
 
-  return uploadBufferToSupabase(buffer, fileName, mimeType);
+  return saveBufferImage(buffer, prefix, ext, mimeType);
 }
 
 export async function getImageContent(messageId) {
@@ -140,3 +154,5 @@ export function getImageFileNameFromUrl(imageUrl = "") {
     return null;
   }
 }
+
+export { getExtensionFromMime, getContentTypeFromExt, extractBase64Parts };

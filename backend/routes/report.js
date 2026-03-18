@@ -2,7 +2,10 @@ import express from "express";
 import fs from "fs/promises";
 import path from "path";
 import { resizeImageForAI, deleteTempImage } from "../utils/resize.js";
-import { saveBase64Image, readImageMetadata } from "../utils/image.js";
+import {
+  saveBufferImage,
+  readImageMetadata,
+} from "../utils/image.js";
 import {
   buildPredictionText,
   buildReportText,
@@ -88,7 +91,9 @@ router.post("/", async (req, res) => {
       console.log("writeTempFile:", Date.now() - writeStart, "ms");
 
       const resizeStart = Date.now();
-      aiImagePath = await resizeImageForAI(tempOriginalPath);
+      const resized = await resizeImageForAI(tempOriginalPath);
+      aiImagePath = resized.path;
+      const resizedBuffer = resized.buffer;
       console.log("resizeImageForAI:", Date.now() - resizeStart, "ms");
 
       const predictStart = Date.now();
@@ -137,8 +142,8 @@ router.post("/", async (req, res) => {
 
     if (!prediction || !shouldSendAlert(prediction)) {
       const uploadStart = Date.now();
-      const { imageUrl } = await saveBase64Image(image, "report");
-      console.log("saveBase64Image:", Date.now() - uploadStart, "ms");
+      const { imageUrl } = await saveBufferImage(resizedBuffer, "report", ".jpg", "image/jpeg");
+      console.log("saveBufferImage:", Date.now() - uploadStart, "ms");
       console.log("TOTAL:", Date.now() - totalStart, "ms");
 
       return res.json({
