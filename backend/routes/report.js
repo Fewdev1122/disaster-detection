@@ -2,10 +2,7 @@ import express from "express";
 import fs from "fs/promises";
 import path from "path";
 import { resizeImageForAI, deleteTempImage } from "../utils/resize.js";
-import {
-  saveBufferImage,
-  readImageMetadata,
-} from "../utils/image.js";
+import { saveBufferImage, readImageMetadata } from "../utils/image.js";
 import {
   buildPredictionText,
   buildReportText,
@@ -20,7 +17,9 @@ import { saveIncident } from "../services/incidentService.js";
 const router = express.Router();
 
 function extractBase64Parts(base64Image) {
-  const matches = base64Image.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  const matches = String(base64Image).match(
+    /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/
+  );
 
   if (!matches) {
     throw new Error("รูปแบบ base64 ไม่ถูกต้อง");
@@ -33,7 +32,7 @@ function extractBase64Parts(base64Image) {
 }
 
 function getExtensionFromMime(mimeType = "") {
-  const type = mimeType.toLowerCase();
+  const type = String(mimeType).toLowerCase();
 
   if (type === "image/png") return ".png";
   if (type === "image/webp") return ".webp";
@@ -93,31 +92,38 @@ router.post("/", async (req, res) => {
       const resizeStart = Date.now();
       const resized = await resizeImageForAI(tempOriginalPath);
       aiImagePath = resized.path;
-      const resizedBuffer = resized.buffer;
       console.log("resizeImageForAI:", Date.now() - resizeStart, "ms");
 
       const predictStart = Date.now();
       const prediction = await predictDisaster(aiImagePath);
       console.log("predictDisaster:", Date.now() - predictStart, "ms");
-      return prediction;
+
+      return {
+        prediction,
+        resizedBuffer: resized.buffer,
+      };
     })();
 
     let metadata;
     let prediction;
+    let resizedBuffer;
 
     try {
-      [metadata, prediction] = await Promise.all([metadataPromise, predictionPromise]);
-      console.log("Prediction:", prediction);
-    } catch (err) {
-      console.error("AI / metadata error:", err.response?.data || err.message);
+      const [metadataResult, predictionResult] = await Promise.all([
+        metadataPromise,
+        predictionPromise,
+      ]);
 
-      return res.status(500).json({
-        error: "AI prediction failed",
-        details: err.response?.data || err.message,
-      });
+      metadata = metadataResult;
+      prediction = predictionResult.prediction;
+      resizedBuffer = predictionResult.resizedBuffer;
+
+      console.log("Prediction:", prediction);
     } finally {
       await safeDelete(aiImagePath);
       await safeDelete(tempOriginalPath);
+      aiImagePath = null;
+      tempOriginalPath = null;
     }
 
     const exifPhotoLat = photo_lat ?? metadata?.latitude ?? null;
@@ -142,7 +148,12 @@ router.post("/", async (req, res) => {
 
     if (!prediction || !shouldSendAlert(prediction)) {
       const uploadStart = Date.now();
-      const { imageUrl } = await saveBufferImage(resizedBuffer, "report", ".jpg", "image/jpeg");
+      const { imageUrl } = await saveBufferImage(
+        resizedBuffer || imageBuffer,
+        "report",
+        ".jpg",
+        "image/jpeg"
+      );
       console.log("saveBufferImage:", Date.now() - uploadStart, "ms");
       console.log("TOTAL:", Date.now() - totalStart, "ms");
 
@@ -189,8 +200,13 @@ router.post("/", async (req, res) => {
     }
 
     const uploadStart = Date.now();
-    const { imageUrl } = await saveBase64Image(image, "report");
-    console.log("saveBase64Image:", Date.now() - uploadStart, "ms");
+    const { imageUrl } = await saveBufferImage(
+      resizedBuffer || imageBuffer,
+      "report",
+      ".jpg",
+      "image/jpeg"
+    );
+    console.log("saveBufferImage:", Date.now() - uploadStart, "ms");
 
     const responsePayload = {
       success: true,
@@ -286,20 +302,23 @@ router.post("/", async (req, res) => {
       const [saveResult, pushResult] = results;
 
       if (saveResult.status === "rejected") {
-        console.error("saveIncident error:", saveResult.reason?.message || saveResult.reason);
+        console.error(
+          "saveIncident error:",
+          saveResult.reason?.message || saveResult.reason
+        );
       }
 
       if (pushResult.status === "rejected") {
-        console.error("LINE push error:", pushResult.reason?.message || pushResult.reason);
+        console.error(
+          "LINE push error:",
+          pushResult.reason?.message || pushResult.reason
+        );
       }
 
       console.log("backgroundTasks:", Date.now() - bgStart, "ms");
     });
   } catch (err) {
     console.error("FULL ERROR:", err.response?.data || err.message);
-
-    await safeDelete(aiImagePath);
-    await safeDelete(tempOriginalPath);
 
     return res.status(500).json({
       error: "Push failed",
