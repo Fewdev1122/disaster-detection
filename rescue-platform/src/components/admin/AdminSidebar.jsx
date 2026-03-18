@@ -1,14 +1,14 @@
 import { NavLink } from "react-router-dom";
 
 const primaryMenus = [
-  { label: "Dashboard", to: "/admin" },
-  { label: "Rescue Requests", to: "/admin/requests", badge: 8 },
+  //{ label: "Dashboard", to: "/admin" },
+  { label: "Rescue Requests", to: "/admin/requests" },
   { label: "Rescue Units", to: "/admin/units" },
-  { label: "Incidents", to: "/admin/incidents", badge: 3 },
-  { label: "Live Map", to: "/admin/live-map" },
-
+  { label: "Incidents", to: "/admin/incidents"},
+  // { label: "Live Map", to: "/admin/live-map" },
 ];
 
+// const systemMenus = [];
 
 function SidebarLink({ item }) {
   return (
@@ -92,23 +92,11 @@ export default function AdminSidebar() {
       <div className="flex-1 overflow-y-auto py-4">
         <div className="space-y-6">
           <SidebarSection title="Operations" items={primaryMenus} />
-          <SidebarSection title="System" items={systemMenus} />
+          {/* <SidebarSection title="System" items={systemMenus} /> */}
         </div>
       </div>
 
-      <div className="border-t border-slate-200 p-4">
-        <div className="border border-slate-200 bg-slate-50 px-3 py-3">
-          <p className="text-xs font-semibold text-slate-900">System status</p>
-          <div className="mt-2 flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            <span className="text-xs text-slate-600">All services operational</span>
-          </div>
-        </div>
-
-        <button className="mt-3 w-full border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-          Logout
-        </button>
-      </div>
+    
     </aside>
   );
 }

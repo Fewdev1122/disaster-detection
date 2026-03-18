@@ -313,14 +313,7 @@ export default function RegisterPendingPage() {
                   {meta.title}
                 </h1>
 
-                {updatedAt ? (
-                  <p className="mt-2 text-xs text-slate-500">
-                    อัปเดตล่าสุด: {new Date(updatedAt).toLocaleString("th-TH")}
-                    {refreshing ? " • กำลังรีเฟรช..." : ""}
-                  </p>
-                ) : refreshing ? (
-                  <p className="mt-2 text-xs text-slate-500">กำลังรีเฟรช...</p>
-                ) : null}
+                
               </div>
 
               <StatusBadge text={meta.badgeText} className={meta.badgeClass} />

@@ -6,18 +6,7 @@ function cx(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
-function getDisasterBadgeClasses(type) {
-  switch ((type || "").toLowerCase()) {
-    case "fire":
-      return "border border-rose-200 bg-rose-50 text-rose-700";
-    case "flood":
-      return "border border-blue-200 bg-blue-50 text-blue-700";
-    case "smoke":
-      return "border border-slate-300 bg-slate-100 text-slate-700";
-    default:
-      return "border border-slate-200 bg-slate-100 text-slate-700";
-  }
-}
+
 
 function Panel({ title, subtitle, children }) {
   return (
@@ -104,7 +93,7 @@ export default function AdminIncidentsPage() {
                   <option value="all">ทุกประเภท</option>
                   <option value="fire">Fire</option>
                   <option value="flood">Flood</option>
-                  <option value="smoke">Smoke</option>
+                
                 </select>
 
                 <button
@@ -158,8 +147,8 @@ export default function AdminIncidentsPage() {
                         <td className="px-4 py-3">
                           <span
                             className={cx(
-                              "px-2 py-1 text-xs rounded",
-                              getDisasterBadgeClasses(item.disaster_type)
+                              "px-4 py-3 text-sm ",
+                             item.disaster_type
                             )}
                           >
                             {item.disaster_type}

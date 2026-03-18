@@ -19,7 +19,7 @@ export default function AdminTopbar({
         </div>
 
         <div className="flex items-center gap-3">
-          <select
+          {/* <select
             value={selectedProvince}
             onChange={(e) => onProvinceChange?.(e.target.value)}
             className="border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none"
@@ -39,7 +39,7 @@ export default function AdminTopbar({
             className="border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {refreshing ? "กำลังรีเฟรช..." : "รีเฟรช"}
-          </button>
+          </button> */}
 
           <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
             <div className="flex h-7 w-7 items-center justify-center rounded bg-slate-900 text-xs font-semibold text-white">

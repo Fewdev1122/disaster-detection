@@ -435,6 +435,22 @@ export default function AdminLiveMapPage() {
       map.setZoom(DEFAULT_ZOOM);
     }
   }, [filteredIncidents, showIncidents, showUnits, units]);
+  useEffect(() => {
+  const el = mapRef.current;
+  if (!el) return;
+
+  const handleWheel = (e) => {
+    if (!(e.metaKey || e.ctrlKey)) {
+      e.preventDefault(); // กัน zoom map
+    }
+  };
+
+  el.addEventListener("wheel", handleWheel, { passive: false });
+
+  return () => {
+    el.removeEventListener("wheel", handleWheel);
+  };
+}, []);
 
   useEffect(() => {
     let mounted = true;

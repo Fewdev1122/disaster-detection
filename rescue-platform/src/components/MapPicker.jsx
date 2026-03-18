@@ -74,6 +74,12 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
   const latestGeocodeRequestRef = useRef(0);
   const searchDebounceRef = useRef(null);
   const sessionTokenRef = useRef(null);
+  const wheelHintTimeoutRef = useRef(null);
+
+  const isMacRef = useRef(
+    typeof navigator !== "undefined" &&
+      /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+  );
 
   const [loadingAddress, setLoadingAddress] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
@@ -84,6 +90,7 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [showZoomHint, setShowZoomHint] = useState(false);
 
   const hasSelectedLocation =
     isValidNumber(value?.lat) && isValidNumber(value?.lng);
@@ -317,6 +324,47 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
   };
 
   useEffect(() => {
+    const el = mapContainerRef.current;
+    if (!el) return;
+
+    const showHint = () => {
+      setShowZoomHint(true);
+
+      if (wheelHintTimeoutRef.current) {
+        clearTimeout(wheelHintTimeoutRef.current);
+      }
+
+      wheelHintTimeoutRef.current = setTimeout(() => {
+        setShowZoomHint(false);
+      }, 1400);
+    };
+
+    const handleWheelCapture = (e) => {
+      const isMac = isMacRef.current;
+      const allowZoom = isMac ? e.metaKey : e.ctrlKey;
+
+      if (!allowZoom) {
+        e.preventDefault();
+        e.stopPropagation();
+        showHint();
+      }
+    };
+
+    el.addEventListener("wheel", handleWheelCapture, {
+      passive: false,
+      capture: true,
+    });
+
+    return () => {
+      el.removeEventListener("wheel", handleWheelCapture, true);
+
+      if (wheelHintTimeoutRef.current) {
+        clearTimeout(wheelHintTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
 
     async function init() {
@@ -346,6 +394,7 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
           streetViewControl: false,
           fullscreenControl: false,
           gestureHandling: "greedy",
+          scrollwheel: true,
         });
 
         markerRef.current = new AdvancedMarkerElement({
@@ -622,13 +671,13 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
               )}
 
               {showSuggestions &&
-                !loadingSuggestions &&
-                searchText.trim() &&
-                suggestions.length === 0 ? (
-                  <div className="border-t border-slate-200 px-4 py-3 text-sm text-slate-500">
-                    ไม่พบสถานที่ที่ใกล้เคียง
-                  </div>
-                ) : null}
+              !loadingSuggestions &&
+              searchText.trim() &&
+              suggestions.length === 0 ? (
+                <div className="border-t border-slate-200 px-4 py-3 text-sm text-slate-500">
+                  ไม่พบสถานที่ที่ใกล้เคียง
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -654,6 +703,14 @@ export default function MapPicker({ value, onChange, radiusKm = 10 }) {
         {hasSelectedLocation ? (
           <div className="absolute bottom-4 right-4 z-[1000] border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
             {value.lat.toFixed(6)}, {value.lng.toFixed(6)}
+          </div>
+        ) : null}
+
+        {showZoomHint ? (
+          <div className="pointer-events-none absolute left-1/2 top-24 z-[1000] -translate-x-1/2 border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-sm">
+            {isMacRef.current
+              ? "กด ⌘ + scroll เพื่อซูมแผนที่"
+              : "กด Ctrl + scroll เพื่อซูมแผนที่"}
           </div>
         ) : null}
 
