@@ -1,6 +1,52 @@
 import axios from "axios";
 import supabase from "../config/supabase.js";
 
+function parseCsvLine(line) {
+  const result = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const next = line[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === "," && !inQuotes) {
+      result.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  result.push(current.trim());
+  return result;
+}
+
+function parseCsv(csvText) {
+  const lines = csvText.trim().split(/\r?\n/);
+  if (lines.length <= 1) return [];
+
+  const headers = parseCsvLine(lines[0]).map((h) => h.trim());
+
+  return lines.slice(1).map((line) => {
+    const values = parseCsvLine(line);
+    const row = {};
+
+    headers.forEach((header, index) => {
+      row[header] = values[index]?.trim() ?? "";
+    });
+
+    return row;
+  });
+}
+
 function isPhayao(lat, lng) {
   const latNum = parseFloat(lat);
   const lngNum = parseFloat(lng);
@@ -19,7 +65,11 @@ function mapHotspotRow(row) {
   return {
     latitude: row.latitude ? parseFloat(row.latitude) : null,
     longitude: row.longitude ? parseFloat(row.longitude) : null,
-    brightness: row.bright_ti4 ? parseFloat(row.bright_ti4) : null,
+    brightness: row.bright_ti4
+      ? parseFloat(row.bright_ti4)
+      : row.brightness
+      ? parseFloat(row.brightness)
+      : null,
     confidence: row.confidence || null,
     satellite: row.satellite || null,
     acq_date: row.acq_date || null,
@@ -29,7 +79,6 @@ function mapHotspotRow(row) {
 
 export async function getHotspotsThailand() {
   const apiKey = process.env.FIRMS_API_KEY;
-
   if (!apiKey) {
     throw new Error("FIRMS_API_KEY missing in .env");
   }
@@ -38,19 +87,14 @@ export async function getHotspotsThailand() {
   const dataset = "VIIRS_SNPP_NRT";
   const days = 1;
 
-  const url = `https://firms.modaps.eosdis.nasa.gov/api/area/json/${apiKey}/${dataset}/${bbox}/${days}`;
+  const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${apiKey}/${dataset}/${bbox}/${days}`;
 
   const response = await axios.get(url, {
+    responseType: "text",
     timeout: 15000,
   });
 
-  const hotspots = response.data?.hotspots || response.data || [];
-
-  if (!Array.isArray(hotspots)) {
-    throw new Error("รูปแบบข้อมูล hotspot ไม่ถูกต้อง");
-  }
-
-  return hotspots;
+  return parseCsv(response.data);
 }
 
 export async function getHotspotsPhayao() {
