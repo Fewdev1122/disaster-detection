@@ -1,16 +1,26 @@
 import crypto from "crypto";
-import { supabase } from "../config/supabase.js";
+import supabase from "../config/supabase.js";
 
-const BASE_URL = "https://api-gateway.gistda.or.th/api/2.0/resources/features/flood";
+const BASE_URL = "https://api-gateway.gistda.or.th/api/2.0/resources/features";
 
 function buildUrl(period, params = {}) {
-  const url = new URL(`${BASE_URL}/${period}`);
+  let endpointPath = "";
+
+  if (period === "flood-freq") {
+    endpointPath = "flood-freq";
+  } else {
+    endpointPath = `flood/${period}`;
+  }
+
+  const url = new URL(`${BASE_URL}/${endpointPath}`);
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       url.searchParams.set(key, value);
     }
   });
+
+  url.searchParams.set("api_key", process.env.GISTDA_API_KEY);
 
   return url.toString();
 }
@@ -25,10 +35,11 @@ async function fetchFloodFeatures(period, params = {}) {
     bbox: params.bbox,
   });
 
+  console.log("Flood URL:", url.replace(process.env.GISTDA_API_KEY, "***"));
+
   const response = await fetch(url, {
     headers: {
       accept: "application/json",
-      "x-api-key": process.env.GISTDA_API_KEY,
     },
   });
 
@@ -37,7 +48,7 @@ async function fetchFloodFeatures(period, params = {}) {
     throw new Error(`GISTDA flood API error ${response.status}: ${text}`);
   }
 
-  return response.json();
+  return await response.json();
 }
 
 function makeFeatureHash(period, feature, observedAt) {
