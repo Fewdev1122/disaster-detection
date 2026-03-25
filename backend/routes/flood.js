@@ -1,27 +1,78 @@
-import express from "express";
-import { testFloodApi } from "../services/floodService.js";
+ import express from "express";
+import { getFloodFromApi, saveFloodToDatabase } from "../services/floodService.js";
 
 const router = express.Router();
 
-router.get("/test", async (req, res) => {
+// ดึงสดจาก API
+router.get("/", async (req, res) => {
   try {
-    const lat = Number(req.query.lat) || 19.9105;
-    const lng = Number(req.query.lng) || 99.8406;
+    const {
+      period = "1day",
+      pv_idn,
+      ap_idn,
+      tb_idn,
+      bbox,
+      limit = 100,
+      offset = 0,
+    } = req.query;
 
-    const data = await testFloodApi(lat, lng);
+    const data = await getFloodFromApi({
+      period,
+      pv_idn,
+      ap_idn,
+      tb_idn,
+      bbox,
+      limit: Number(limit),
+      offset: Number(offset),
+    });
 
     res.json({
-      success: true,
-      location: { lat, lng },
+      ok: true,
+      source: "gistda_api",
+      count: data.features?.length || 0,
       data,
     });
   } catch (error) {
-    console.error("Flood API route error:", error);
-
+    console.error("Flood route error:", error.message);
     res.status(500).json({
-      success: false,
-      message: "Flood API error",
-      detail: error.message,
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+// sync เข้า DB
+router.post("/sync", async (req, res) => {
+  try {
+    const {
+      period = "1day",
+      pv_idn,
+      ap_idn,
+      tb_idn,
+      bbox,
+      limit = 100,
+      offset = 0,
+    } = req.body || {};
+
+    const result = await saveFloodToDatabase({
+      period,
+      pv_idn,
+      ap_idn,
+      tb_idn,
+      bbox,
+      limit: Number(limit),
+      offset: Number(offset),
+    });
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error("Flood sync error:", error.message);
+    res.status(500).json({
+      ok: false,
+      error: error.message,
     });
   }
 });
