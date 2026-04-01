@@ -1,3 +1,18 @@
+const DISASTER_LABEL_MAP = {
+  fire: "ไฟไหม้",
+  flood: "น้ำท่วม",
+  smoke: "ควัน",
+  fog: "หมอก",
+  dust: "ฝุ่น",
+  normal: "ปกติ",
+};
+
+const LOCATION_SOURCE_MAP = {
+  image_exif: "พิกัดจากรูปภาพ",
+  device_gps: "พิกัดปัจจุบันของผู้แจ้ง",
+  unknown: "ไม่ทราบแหล่งพิกัด",
+};
+
 export function formatThaiDate(dateValue) {
   if (!dateValue) return "-";
 
@@ -9,38 +24,16 @@ export function formatThaiDate(dateValue) {
 }
 
 export function formatDisasterLabel(label) {
-  const map = {
-    fire: "ไฟไหม้",
-    flood: "น้ำท่วม",
-    smoke: "ควัน",
-    fog: "หมอก",
-    dust: "ฝุ่น",
-    normal: "ปกติ",
-  };
-
-  return map[label] || label;
+  return DISASTER_LABEL_MAP[label] || label;
 }
 
 export function formatLocationSource(source) {
-  const map = {
-    image_exif: "พิกัดจากรูปภาพ",
-    device_gps: "พิกัดปัจจุบันของผู้แจ้ง",
-    unknown: "ไม่ทราบแหล่งพิกัด",
-  };
-
-  return map[source] || source || "-";
+  return LOCATION_SOURCE_MAP[source] || source || "-";
 }
 
-export function buildPredictionText(prediction) {
-  if (!prediction || !prediction.class) {
-    return "ประเภทเหตุ: ไม่สามารถวิเคราะห์ได้";
-  }
-
-  return `ประเภทเหตุ: ${formatDisasterLabel(prediction.class)}`;
-}
-
-export function buildReportText({
+export function buildPredictionText({
   title,
+  prediction,
   reportTimestamp,
   reporterLat,
   reporterLng,
@@ -51,22 +44,25 @@ export function buildReportText({
   eventLng,
   locationSource,
 }) {
-  const lines = [
-    title,
-    "",
-  ];
+  const lines = [title, ""];
+
+  lines.push(
+    `ประเภทเหตุ: ${
+      prediction?.class ? formatDisasterLabel(prediction.class) : "ไม่สามารถวิเคราะห์ได้"
+    }`
+  );
 
   if (photoDate) {
     lines.push(`เวลาในรูป: ${photoDate}`);
   }
 
   lines.push(`เวลาแจ้งเหตุ: ${formatThaiDate(reportTimestamp)}`);
-  lines.push("");
 
   if (eventLat != null && eventLng != null) {
-    lines.push(
-      `ตำแหน่งเหตุ: ${Number(eventLat).toFixed(5)}, ${Number(eventLng).toFixed(5)}`
-    );
+    const lat = Number(eventLat).toFixed(5);
+    const lng = Number(eventLng).toFixed(5);
+    lines.push(`ตำแหน่งเหตุ: ${lat}, ${lng}`);
+    lines.push(`แผนที่: https://maps.google.com/?q=${lat},${lng}`);
   }
 
   if (locationSource) {

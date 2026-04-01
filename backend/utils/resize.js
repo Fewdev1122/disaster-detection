@@ -1,13 +1,8 @@
-import path from "path";
 import sharp from "sharp";
 import fs from "fs/promises";
 
-export async function resizeImageForAI(inputPath) {
-  const ext = path.extname(inputPath);
-  const base = inputPath.slice(0, -ext.length);
-  const outputPath = `${base}-ai.jpg`;
-
-  await sharp(inputPath)
+export async function resizeImageForAI(input) {
+  const transformer = sharp(input)
     .rotate()
     .resize({
       width: 640,
@@ -18,13 +13,14 @@ export async function resizeImageForAI(inputPath) {
     .jpeg({
       quality: 80,
       mozjpeg: true,
-    })
-    .toFile(outputPath);
+    });
 
-  return outputPath;
+  return transformer.toBuffer();
 }
 
 export async function deleteTempImage(filePath) {
+  if (!filePath) return;
+
   try {
     await fs.unlink(filePath);
   } catch (err) {

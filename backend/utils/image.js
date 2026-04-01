@@ -29,6 +29,23 @@ function buildFileName(prefix = "report", ext = ".jpg") {
   return `${safePrefix}-${Date.now()}${ext}`;
 }
 
+function parseBase64Image(base64Image) {
+  if (!base64Image) {
+    throw new Error("Base64 image is required");
+  }
+
+  const matches = base64Image.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+
+  if (!matches) {
+    throw new Error("รูปแบบ base64 ไม่ถูกต้อง");
+  }
+
+  return {
+    mimeType: matches[1],
+    base64Data: matches[2],
+  };
+}
+
 async function uploadBufferToSupabase(buffer, fileName, contentType) {
   const filePathInBucket = fileName;
 
@@ -40,7 +57,9 @@ async function uploadBufferToSupabase(buffer, fileName, contentType) {
     });
 
   if (uploadError) {
-    throw new Error(`อัปโหลดรูปไป Supabase Storage ไม่สำเร็จ: ${uploadError.message}`);
+    throw new Error(
+      `อัปโหลดรูปไป Supabase Storage ไม่สำเร็จ: ${uploadError.message}`
+    );
   }
 
   const { data } = supabase.storage
@@ -63,28 +82,18 @@ export async function saveBufferImage(buffer, prefix = "line", ext = ".jpg") {
   const contentType = getContentTypeFromExt(normalizedExt);
   const fileName = buildFileName(prefix, normalizedExt);
 
+  console.log("saveBufferImage buffer size =", buffer.length, "bytes");
+
   return uploadBufferToSupabase(buffer, fileName, contentType);
 }
 
 export async function saveBase64Image(base64Image, prefix = "report") {
-  if (!base64Image) {
-    throw new Error("Base64 image is required");
-  }
-
-  const matches = base64Image.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-
-  if (!matches) {
-    throw new Error("รูปแบบ base64 ไม่ถูกต้อง");
-  }
-
-  const mimeType = matches[1];
-  const base64Data = matches[2];
+  const { mimeType, base64Data } = parseBase64Image(base64Image);
 
   const ext = getExtensionFromMime(mimeType);
-  const fileName = buildFileName(prefix, ext);
   const buffer = Buffer.from(base64Data, "base64");
 
-  return uploadBufferToSupabase(buffer, fileName, mimeType);
+  return saveBufferImage(buffer, prefix, ext);
 }
 
 export async function getImageContent(messageId) {
@@ -140,3 +149,5 @@ export function getImageFileNameFromUrl(imageUrl = "") {
     return null;
   }
 }
+
+export { getExtensionFromMime };

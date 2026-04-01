@@ -4,7 +4,7 @@ import { haversine } from "../utils/geo.js";
 let rescueCache = [];
 let lastFetch = 0;
 
-const CACHE_TTL = 60000; // 1 นาที
+const CACHE_TTL = 5 * 60 * 1000; // 5 นาที
 
 export function clearRescueCache() {
   rescueCache = [];
@@ -15,14 +15,19 @@ async function getRescueUnits() {
   const now = Date.now();
 
   if (rescueCache.length && now - lastFetch < CACHE_TTL) {
+    console.log("getRescueUnits: cache hit");
     return rescueCache;
   }
+
+  const t0 = Date.now();
 
   const { data, error } = await supabase
     .from("rescue_units")
     .select("id,name,line_group_id,base_lat,base_lng,coverage_km,status")
     .eq("status", "active")
     .not("line_group_id", "is", null);
+
+  console.log("getRescueUnits query:", Date.now() - t0, "ms");
 
   if (error) {
     throw new Error(error.message);
@@ -37,7 +42,11 @@ async function getRescueUnits() {
 export async function findNearestRescue(lat, lng) {
   if (lat == null || lng == null) return null;
 
+  const t0 = Date.now();
   const data = await getRescueUnits();
+  console.log("findNearestRescue getRescueUnits:", Date.now() - t0, "ms");
+
+  const t1 = Date.now();
 
   let nearest = null;
   let minDistance = Infinity;
@@ -63,6 +72,8 @@ export async function findNearestRescue(lat, lng) {
       };
     }
   }
+
+  console.log("findNearestRescue compute:", Date.now() - t1, "ms");
 
   return nearest;
 }
@@ -109,7 +120,6 @@ export async function bindRescueGroupByCode({ connectCode, groupId }) {
   }
 
   clearRescueCache();
-
   return data;
 }
 
@@ -152,6 +162,5 @@ export async function bindRescueUserByCode({ connectCode, lineUserId }) {
   }
 
   clearRescueCache();
-
   return data;
 }
