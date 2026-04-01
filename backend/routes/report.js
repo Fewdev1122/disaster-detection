@@ -180,6 +180,24 @@ router.post("/", async (req, res) => {
       },
     ];
 
+    if (incidentLat != null && incidentLng != null) {
+      messages.push({
+        type: "location",
+        title: "ตำแหน่งเหตุการณ์",
+        address: "จุดเกิดเหตุ",
+        latitude: Number(incidentLat),
+        longitude: Number(incidentLng),
+      });
+    }
+
+    if (imageUrl) {
+      messages.push({
+        type: "image",
+        originalContentUrl: imageUrl,
+        previewImageUrl: imageUrl,
+      });
+    }
+
     pushToRescueGroup(nearestRescue.line_group_id, messages).catch((err) => {
       console.error("LINE push error:", err.message);
     });
