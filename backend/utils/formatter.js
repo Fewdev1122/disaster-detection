@@ -59,27 +59,31 @@ export function buildReportText({
 
   lines.push(`เวลาแจ้งเหตุ: ${formatThaiDate(reportTimestamp)}`);
 
-  if (eventLat != null && eventLng != null) {
-    const lat = Number(eventLat).toFixed(5);
-    const lng = Number(eventLng).toFixed(5);
-    lines.push(`ตำแหน่งเหตุ: ${lat}, ${lng}`);
-    lines.push(`แผนที่: https://maps.google.com/?q=${lat},${lng}`);
-  }
-
   if (locationSource) {
     lines.push(`แหล่งพิกัด: ${formatLocationSource(locationSource)}`);
   }
 
-  if (photoLat != null && photoLng != null) {
-    lines.push(
-      `พิกัดจากรูป: ${Number(photoLat).toFixed(5)}, ${Number(photoLng).toFixed(5)}`
-    );
+  if (eventLat != null && eventLng != null) {
+    const lat = Number(eventLat).toFixed(5);
+    const lng = Number(eventLng).toFixed(5);
+
+    lines.push("");
+    lines.push("📍 จุดเกิดเหตุ:");
+    lines.push(`https://maps.google.com/?q=${lat},${lng}`);
   }
 
-  if (reporterLat != null && reporterLng != null) {
-    lines.push(
-      `พิกัดผู้แจ้ง: ${Number(reporterLat).toFixed(5)}, ${Number(reporterLng).toFixed(5)}`
-    );
+  if (
+    photoLat != null &&
+    photoLng != null &&
+    reporterLat != null &&
+    reporterLng != null
+  ) {
+    const rLat = Number(reporterLat).toFixed(5);
+    const rLng = Number(reporterLng).toFixed(5);
+
+    lines.push("");
+    lines.push("👤 ตำแหน่งผู้แจ้ง:");
+    lines.push(`https://maps.google.com/?q=${rLat},${rLng}`);
   }
 
   return lines.join("\n");
