@@ -32,14 +32,15 @@ async function resizeBufferForAI(buffer) {
   return sharp(buffer)
     .rotate()
     .resize({
-      width: 640,
-      height: 640,
+      width: 512,
+      height: 512,
       fit: "inside",
       withoutEnlargement: true,
     })
     .jpeg({
-      quality: 80,
+      quality: 60,
       mozjpeg: true,
+
     })
     .toBuffer();
 }
