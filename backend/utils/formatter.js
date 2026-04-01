@@ -63,12 +63,6 @@ export function buildReportText({
     lines.push(`แหล่งพิกัด: ${formatLocationSource(locationSource)}`);
   }
 
-  if (eventLat != null && eventLng != null) {
-
-    lines.push("");
-    lines.push("📍 จุดเกิดเหตุ:");
-
-  }
 
   if (
     photoLat != null &&
