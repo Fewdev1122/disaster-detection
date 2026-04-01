@@ -31,9 +31,16 @@ export function formatLocationSource(source) {
   return LOCATION_SOURCE_MAP[source] || source || "-";
 }
 
-export function buildPredictionText({
+export function buildPredictionText(prediction) {
+  if (!prediction || !prediction.class) {
+    return "ประเภทเหตุ: ไม่สามารถวิเคราะห์ได้";
+  }
+
+  return `ประเภทเหตุ: ${formatDisasterLabel(prediction.class)}`;
+}
+
+export function buildReportText({
   title,
-  prediction,
   reportTimestamp,
   reporterLat,
   reporterLng,
@@ -45,12 +52,6 @@ export function buildPredictionText({
   locationSource,
 }) {
   const lines = [title, ""];
-
-  lines.push(
-    `ประเภทเหตุ: ${
-      prediction?.class ? formatDisasterLabel(prediction.class) : "ไม่สามารถวิเคราะห์ได้"
-    }`
-  );
 
   if (photoDate) {
     lines.push(`เวลาในรูป: ${photoDate}`);
