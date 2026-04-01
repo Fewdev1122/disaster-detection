@@ -20,10 +20,7 @@ const router = express.Router();
 
 function extractBase64Parts(base64Image) {
   const matches = base64Image.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-
-  if (!matches) {
-    throw new Error("รูปแบบ base64 ไม่ถูกต้อง");
-  }
+  if (!matches) throw new Error("Invalid base64");
 
   return {
     mimeType: matches[1],
@@ -66,23 +63,23 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Image missing" });
     }
 
+    // 🔥 decode
     const { mimeType, base64Data } = extractBase64Parts(image);
     const imageBuffer = Buffer.from(base64Data, "base64");
     const imageExt = getExtensionFromMime(mimeType);
 
-    const t2 = Date.now();
+    // 🔥 EXIF
     const metadata = await readImageMetadata(imageBuffer);
-    console.log("readImageMetadata:", Date.now() - t2, "ms");
 
-    const t3 = Date.now();
+    // 🔥 resize for AI
     const aiBuffer = await resizeBufferForAI(imageBuffer);
-    console.log("resizeBufferForAI:", Date.now() - t3, "ms");
 
-    const t4 = Date.now();
+    // 🔥 AI
     const prediction = await predictDisaster(aiBuffer);
-    console.log("predictDisaster:", Date.now() - t4, "ms");
-    console.log("Prediction:", prediction);
 
+    // -----------------------------
+    // 📍 location logic
+    // -----------------------------
     const exifPhotoLat = photo_lat ?? metadata.latitude ?? null;
     const exifPhotoLng = photo_lng ?? metadata.longitude ?? null;
 
@@ -103,58 +100,23 @@ router.post("/", async (req, res) => {
       finalLocationSource = location_source || "device_gps";
     }
 
-    const t1 = Date.now();
-    const { imageUrl } = await saveBufferImage(imageBuffer, "report", imageExt);
-    console.log("saveBufferImage:", Date.now() - t1, "ms");
-    console.log("imageUrl:", imageUrl);
-
+    // 🔥 ถ้าไม่ต้องแจ้งเตือน
     if (!prediction || !shouldSendAlert(prediction)) {
-      console.log("TOTAL:", Date.now() - t0, "ms");
-
-      return res.json({
-        success: true,
-        message: "normal detected, no alert sent",
-        prediction,
-        image_url: imageUrl,
-        event_lat: incidentLat,
-        event_lng: incidentLng,
-        photo_lat: exifPhotoLat,
-        photo_lng: exifPhotoLng,
-        reporter_lat: reporterLat,
-        reporter_lng: reporterLng,
-        location_source: finalLocationSource,
-      });
+      return res.json({ success: true });
     }
 
     if (incidentLat == null || incidentLng == null) {
-      return res.status(400).json({
-        error: "ไม่พบพิกัดเหตุการณ์",
-        prediction,
-        image_url: imageUrl,
-      });
+      return res.status(400).json({ error: "No location" });
     }
 
-    const t5 = Date.now();
+    // 🔥 หา rescue
     const nearestRescue = await findNearestRescue(incidentLat, incidentLng);
-    console.log("findNearestRescue:", Date.now() - t5, "ms");
 
     if (!nearestRescue) {
-      console.log("TOTAL:", Date.now() - t0, "ms");
-
-      return res.status(404).json({
-        error: "ไม่พบหน่วยกู้ภัยที่ครอบคลุมพื้นที่นี้",
-        prediction,
-        image_url: imageUrl,
-        event_lat: incidentLat,
-        event_lng: incidentLng,
-        photo_lat: exifPhotoLat,
-        photo_lng: exifPhotoLng,
-        reporter_lat: reporterLat,
-        reporter_lng: reporterLng,
-        location_source: finalLocationSource,
-      });
+      return res.status(404).json({ error: "No rescue unit" });
     }
 
+    // 🔥 สร้างข้อความ
     const baseText = buildReportText({
       title: "🚨 Disaster Alert",
       reportTimestamp: Date.now(),
@@ -170,75 +132,71 @@ router.post("/", async (req, res) => {
       `${buildRescueText(nearestRescue)}`;
 
     const messages = [
+      { type: "text", text: finalText },
       {
-        type: "text",
-        text: finalText,
-      },
-    ];
-    if (incidentLat != null && incidentLng != null) {
-      messages.push({
         type: "location",
-        title: "incident", 
+        title: "Location", // ✅ ห้ามว่าง
         address: "Reported location",
         latitude: Number(incidentLat),
         longitude: Number(incidentLng),
-      });
-    }
-
-    if (imageUrl) {
-      messages.push({
-        type: "image",
-        originalContentUrl: imageUrl,  
-        previewImageUrl: imageUrl,
-      });
-    }
-
-    pushToRescueGroup(nearestRescue.line_group_id, messages).catch((err) => {
-      console.error("LINE push error:", err.message);
-    });
-
-    await saveIncident({
-      sourceType: "web_report",
-      imageUrl,
-      disasterType: prediction?.class || null,
-      confidence: prediction?.confidence ?? null,
-      eventLat: incidentLat,
-      eventLng: incidentLng,
-      photoLat: exifPhotoLat,
-      photoLng: exifPhotoLng,
-      rescueUnitId: nearestRescue.id,
-      rawPrediction: {
-        ...prediction,
-        location_source: finalLocationSource,
-        reporter_lat: reporterLat,
-        reporter_lng: reporterLng,
       },
-    }).catch((err) => {
-      console.error("saveIncident error:", err.message);
-    });
+    ];
 
-    console.log("TOTAL:", Date.now() - t0, "ms");
+    // 🚀 เริ่ม upload แต่ไม่รอ
+    const uploadPromise = saveBufferImage(imageBuffer, "report", imageExt);
 
-    return res.json({
+    // 🚀 ส่ง response ทันที
+    res.json({
       success: true,
       prediction,
-      image_url: imageUrl,
-      nearest_rescue: nearestRescue,
-      event_lat: incidentLat,
-      event_lng: incidentLng,
-      photo_lat: exifPhotoLat,
-      photo_lng: exifPhotoLng,
-      reporter_lat: reporterLat,
-      reporter_lng: reporterLng,
-      location_source: finalLocationSource,
     });
-  } catch (err) {
-    console.error("FULL ERROR:", err.response?.data || err.message);
 
-    return res.status(500).json({
-      error: "Push failed",
-      details: err.response?.data || err.message,
-    });
+    // -----------------------------
+    // 🔥 background job
+    // -----------------------------
+    uploadPromise
+      .then(({ imageUrl }) => {
+        console.log("imageUrl:", imageUrl);
+
+        // 📩 ส่ง LINE (text + map)
+        pushToRescueGroup(nearestRescue.line_group_id, messages).catch(console.error);
+
+        // 🖼️ ส่งรูปแยก
+        if (imageUrl) {
+          pushToRescueGroup(nearestRescue.line_group_id, [
+            {
+              type: "image",
+              originalContentUrl: imageUrl,
+              previewImageUrl: imageUrl,
+            },
+          ]).catch(console.error);
+        }
+
+        // 💾 save DB
+        saveIncident({
+          sourceType: "web_report",
+          imageUrl,
+          disasterType: prediction?.class || null,
+          confidence: prediction?.confidence ?? null,
+          eventLat: incidentLat,
+          eventLng: incidentLng,
+          photoLat: exifPhotoLat,
+          photoLng: exifPhotoLng,
+          rescueUnitId: nearestRescue.id,
+          rawPrediction: {
+            ...prediction,
+            location_source: finalLocationSource,
+            reporter_lat: reporterLat,
+            reporter_lng: reporterLng,
+          },
+        }).catch(console.error);
+      })
+      .catch(console.error);
+
+    console.log("TOTAL:", Date.now() - t0, "ms");
+  } catch (err) {
+    console.error("ERROR:", err.message);
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
