@@ -16,7 +16,7 @@ const LOCATION_SOURCE_MAP = {
 export function formatDateEN(dateValue) {
   if (!dateValue) return "-";
 
-  return new Date(dateValue).toLocaleString("en-US", {
+  return new Date(dateValue).toLocaleString("en-GB", {
     timeZone: "Asia/Bangkok",
     dateStyle: "medium",
     timeStyle: "short",
