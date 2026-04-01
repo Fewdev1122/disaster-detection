@@ -1,6 +1,7 @@
 import axios from "axios";
 import exifr from "exifr";
 import path from "path";
+import sharp from "sharp";
 import supabase from "../config/supabase.js";
 
 const BUCKET_NAME = "incident-images";
@@ -46,8 +47,37 @@ function parseBase64Image(base64Image) {
   };
 }
 
+async function optimizeImageBuffer(buffer, ext = ".jpg") {
+  const lowerExt = ext.toLowerCase();
+
+  const transformer = sharp(buffer).rotate().resize({
+    width: 1280,
+    withoutEnlargement: true,
+  });
+
+  if (lowerExt === ".png") {
+    return transformer.png({
+      compressionLevel: 9,
+      adaptiveFiltering: true,
+    }).toBuffer();
+  }
+
+  if (lowerExt === ".webp") {
+    return transformer.webp({
+      quality: 70,
+    }).toBuffer();
+  }
+
+  return transformer.jpeg({
+    quality: 70,
+    mozjpeg: true,
+  }).toBuffer();
+}
+
 async function uploadBufferToSupabase(buffer, fileName, contentType) {
   const filePathInBucket = fileName;
+
+  const tUpload = Date.now();
 
   const { error: uploadError } = await supabase.storage
     .from(BUCKET_NAME)
@@ -55,6 +85,8 @@ async function uploadBufferToSupabase(buffer, fileName, contentType) {
       contentType,
       upsert: false,
     });
+
+  console.log("supabase upload:", Date.now() - tUpload, "ms");
 
   if (uploadError) {
     throw new Error(
@@ -82,9 +114,18 @@ export async function saveBufferImage(buffer, prefix = "line", ext = ".jpg") {
   const contentType = getContentTypeFromExt(normalizedExt);
   const fileName = buildFileName(prefix, normalizedExt);
 
-  console.log("saveBufferImage buffer size =", buffer.length, "bytes");
+  console.log("saveBufferImage original buffer size =", buffer.length, "bytes");
 
-  return uploadBufferToSupabase(buffer, fileName, contentType);
+  const tOptimize = Date.now();
+  const optimizedBuffer = await optimizeImageBuffer(buffer, normalizedExt);
+  console.log("optimize image:", Date.now() - tOptimize, "ms");
+  console.log(
+    "saveBufferImage optimized buffer size =",
+    optimizedBuffer.length,
+    "bytes"
+  );
+
+  return uploadBufferToSupabase(optimizedBuffer, fileName, contentType);
 }
 
 export async function saveBase64Image(base64Image, prefix = "report") {
