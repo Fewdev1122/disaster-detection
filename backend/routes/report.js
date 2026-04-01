@@ -178,7 +178,7 @@ router.post("/", async (req, res) => {
     if (incidentLat != null && incidentLng != null) {
       messages.push({
         type: "location",
-        title: "", 
+        title: "incident", 
         address: "Reported location",
         latitude: Number(incidentLat),
         longitude: Number(incidentLng),

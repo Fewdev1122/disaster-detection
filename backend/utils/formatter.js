@@ -63,11 +63,7 @@ export function buildReportText({
     lines.push(`Source: ${formatLocationSource(locationSource)}`);
   }
 
-  // 📍 Incident (ใช้ location card อยู่แล้ว เลยไม่ต้องใส่ link)
-  if (eventLat != null && eventLng != null) {
-    lines.push("");
-    lines.push("📍 Incident Location");
-  }
+ 
 
   // 👤 Reporter (แสดงเฉพาะกรณีมี EXIF)
   if (
