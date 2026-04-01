@@ -113,7 +113,7 @@ export default function UploadPage() {
         location_source: photoLocation ? "image_exif" : "device_gps",
       });
 
-      alert("แจ้งเหตุเรียบร้อย");
+      alert("Incident reported successfully");
 
       resetUploadState();
     } catch (err) {
@@ -141,11 +141,11 @@ export default function UploadPage() {
             <div className="w-10 h-10 mx-auto border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
 
             <p className="mt-4 text-gray-800 font-semibold">
-              กำลังวิเคราะห์ภาพ...
+              Processing image...
             </p>
 
             <p className="text-sm text-gray-500 mt-1">
-              กรุณารอสักครู่
+              "Please wait..."
             </p>
           </div>
         </div>
@@ -165,7 +165,7 @@ export default function UploadPage() {
                 disabled={loading}
                 className="w-1/3 py-4 bg-gray-200 text-gray-800 rounded-xl font-semibold disabled:opacity-50"
               >
-                ยกเลิก
+                Cencel
               </button>
 
               <button
@@ -173,7 +173,7 @@ export default function UploadPage() {
                 disabled={loading}
                 className="w-2/3 py-4 bg-red-600 text-white rounded-xl font-semibold disabled:opacity-50"
               >
-                {loading ? "กำลังส่ง..." : "แจ้งเหตุ"}
+                {loading ? "Sending..." : "Report Incident"}
               </button>
             </div>
           )}

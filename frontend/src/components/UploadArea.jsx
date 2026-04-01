@@ -17,7 +17,7 @@ export default function UploadArea({ preview, onClick }) {
 
           <div className="absolute inset-0 bg-black/20 flex items-end justify-center pb-4">
             <span className="text-white text-sm bg-black/40 px-3 py-1 rounded-full">
-              แตะเพื่อเปลี่ยนรูป
+              Tap to change photo
             </span>
           </div>
         </>
@@ -72,7 +72,7 @@ export default function UploadArea({ preview, onClick }) {
           </svg>
 
           <span className="text-gray-400 text-sm mt-2">
-            แตะเพื่ออัปโหลดรูปภาพ
+            Tap to upload an image
           </span>
         </div>
       )}

@@ -156,12 +156,8 @@ router.post("/", async (req, res) => {
     }
 
     const baseText = buildReportText({
-      title: "🚨 แจ้งเหตุภัยพิบัติ",
+      title: "🚨 Disaster Alert",
       reportTimestamp: Date.now(),
-      reporterLat,
-      reporterLng,
-      photoLat: exifPhotoLat,
-      photoLng: exifPhotoLng,
       photoDate: metadata.photoDate,
       eventLat: incidentLat,
       eventLng: incidentLng,
@@ -179,12 +175,10 @@ router.post("/", async (req, res) => {
         text: finalText,
       },
     ];
-
     if (incidentLat != null && incidentLng != null) {
       messages.push({
         type: "location",
-        title: "ตำแหน่งเหตุการณ์",
-        address: "จุดเกิดเหตุ",
+        address: "Reported location",
         latitude: Number(incidentLat),
         longitude: Number(incidentLng),
       });
@@ -193,7 +187,7 @@ router.post("/", async (req, res) => {
     if (imageUrl) {
       messages.push({
         type: "image",
-        originalContentUrl: imageUrl,
+        originalContentUrl: imageUrl,  
         previewImageUrl: imageUrl,
       });
     }
