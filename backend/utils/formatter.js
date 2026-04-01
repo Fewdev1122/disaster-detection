@@ -64,12 +64,10 @@ export function buildReportText({
   }
 
   if (eventLat != null && eventLng != null) {
-    const lat = Number(eventLat).toFixed(5);
-    const lng = Number(eventLng).toFixed(5);
 
     lines.push("");
     lines.push("📍 จุดเกิดเหตุ:");
-    lines.push(`https://maps.google.com/?q=${lat},${lng}`);
+
   }
 
   if (
